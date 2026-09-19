@@ -1,0 +1,330 @@
+/* ChatPlug — the highlight panel.
+
+   Three type roles, and they mean something:
+     serif  — the passages you saved, because that is reading matter
+     mono   — what the tool says about them (role, time, counts)
+     sans   — what you click
+   No web fonts: an extension should not reach out to a CDN to render itself. */
+
+:root {
+  --paper: #fcfcfa;
+  --paper-sunk: #f4f3ef;
+  --ink: #1b1a16;
+  --ink-soft: #565248;
+  --ink-faint: #8d887c;
+  --edge: rgba(27, 26, 22, 0.10);
+  --edge-soft: rgba(27, 26, 22, 0.06);
+  --focus: #3b6fd4;
+
+  --c-yellow: #f5c518;
+  --c-green: #4fc97a;
+  --c-blue: #45aee8;
+  --c-pink: #f27298;
+  --c-purple: #9b7bf0;
+
+  --sans: ui-sans-serif, "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  --mono: ui-monospace, "Cascadia Code", Consolas, "SF Mono", monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #191917;
+    --paper-sunk: #201f1c;
+    --ink: #f1efe8;
+    --ink-soft: #a8a396;
+    --ink-faint: #736e63;
+    --edge: rgba(255, 255, 255, 0.11);
+    --edge-soft: rgba(255, 255, 255, 0.06);
+    --focus: #8fb7ff;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  width: 384px;
+  max-height: 560px;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+  border-radius: 4px;
+}
+
+/* ---------- header ---------- */
+
+.head {
+  padding: 14px 16px 11px;
+  border-bottom: 1px solid var(--edge);
+}
+
+.eyebrow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.count { font-variant-numeric: tabular-nums; }
+
+.convo {
+  margin: 5px 0 0;
+  font-family: var(--serif);
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.3;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- colour filters ---------- */
+
+.filters {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 9px 16px;
+  border-bottom: 1px solid var(--edge-soft);
+}
+
+.swatch {
+  position: relative;
+  width: 24px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+
+.swatch:hover { background: var(--paper-sunk); }
+
+.swatch i {
+  display: block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--sw);
+  box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.14);
+  transition: opacity 0.1s ease;
+}
+
+/* With no filter on, every colour is showing — so every swatch is lit.
+   Dimming means "filtered out", not "not selected". */
+.swatch[data-dim] i { opacity: 0.3; }
+.swatch[data-empty] { opacity: 0.22; pointer-events: none; }
+
+.swatch[aria-pressed="true"]::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 1px;
+  width: 10px;
+  height: 2px;
+  border-radius: 1px;
+  transform: translateX(-50%);
+  background: var(--sw);
+}
+
+.filter-note {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  background: none;
+  border: 0;
+  padding: 3px 5px;
+  cursor: pointer;
+}
+
+.filter-note:hover { color: var(--ink); }
+.filter-note[hidden] { display: none; }
+
+/* ---------- list ---------- */
+
+.list {
+  flex: 1;
+  min-height: 108px;
+  overflow-y: auto;
+  padding: 4px 0 6px;
+}
+
+.entry {
+  position: relative;
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 11px 14px 12px 19px;
+  border: 0;
+  border-bottom: 1px solid var(--edge-soft);
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.entry:hover { background: var(--paper-sunk); }
+.entry:focus-visible { outline-offset: -2px; }
+
+/* The coloured rule down the side is the marginal stroke a reader draws
+   next to a passage. It carries the colour without spending a chip on it. */
+.entry::before {
+  content: "";
+  position: absolute;
+  left: 10px;
+  top: 12px;
+  bottom: 12px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--rule, var(--c-yellow));
+}
+
+.meta {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.meta .dot { opacity: 0.5; }
+
+.quote {
+  margin: 5px 0 0;
+  font-family: var(--serif);
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--ink);
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.note {
+  margin: 6px 0 0;
+  padding-left: 9px;
+  border-left: 1.5px dotted var(--rule, var(--c-yellow));
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink-soft);
+}
+
+.kill {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-faint);
+  cursor: pointer;
+  display: none;
+  place-items: center;
+}
+
+.entry:hover .kill,
+.entry:focus-within .kill { display: grid; }
+.kill:hover { background: rgba(214, 95, 85, 0.16); color: #c9453a; }
+.kill svg { width: 13px; height: 13px; }
+
+/* ---------- empty states ---------- */
+
+.empty {
+  padding: 34px 26px;
+  text-align: center;
+  color: var(--ink-soft);
+}
+
+.empty strong {
+  display: block;
+  font-family: var(--serif);
+  font-size: 15px;
+  font-weight: 400;
+  color: var(--ink);
+  margin-bottom: 6px;
+}
+
+.empty p { margin: 0; font-size: 12.5px; line-height: 1.55; }
+
+.empty kbd {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  padding: 1px 5px;
+  border: 1px solid var(--edge);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: var(--paper-sunk);
+}
+
+/* ---------- footer ---------- */
+
+.foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 12px;
+  border-top: 1px solid var(--edge);
+  background: var(--paper);
+}
+
+.spacer { flex: 1; }
+
+.btn {
+  height: 27px;
+  padding: 0 10px;
+  border: 1px solid var(--edge);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btn:hover { background: var(--paper-sunk); }
+.btn-accent {
+  border-color: transparent;
+  background: var(--c-yellow);
+  color: #1a1810;
+  font-weight: 600;
+}
+.btn-accent:hover { background: var(--c-yellow); filter: brightness(1.06); }
+.btn-quiet { border-color: transparent; color: var(--ink-soft); }
+.btn-quiet:hover { color: var(--ink); }
+.btn-danger { border-color: #c9453a; color: #c9453a; }
+.btn-danger:hover { background: rgba(201, 69, 58, 0.12); }
+
+.confirm { display: flex; gap: 6px; }
+.confirm[hidden] { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; }
+}

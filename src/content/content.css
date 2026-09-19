@@ -1,0 +1,75 @@
+/* ChatPlug — how a highlight looks on the page.
+
+   The ink is opaque and the text sitting on it is dark, in both themes. That is
+   how a highlighter actually works on paper, and it is the only way to get real
+   colour in dark mode: a translucent wash under white text has a hard ceiling,
+   because the composite has to stay dark enough for the white text to remain
+   readable, which drains the colour out of every ink until yellow and green are
+   barely tellable apart. Opaque ink lifts that ceiling — the same five colours
+   now read identically whether ChatGPT is light or dark.
+
+   Vertical padding lets the stroke stand slightly proud of the glyphs, and the
+   ends of the gradient soften so it reads as laid-down ink rather than a filled
+   rectangle. The band never goes transparent, so no glyph is ever left sitting
+   on the bare page. */
+
+mark.cp-hl {
+  --ink: 245, 197, 24;
+
+  background-color: transparent;
+  background-image: linear-gradient(
+    to bottom,
+    rgba(var(--ink), 0.78) 0%,
+    rgb(var(--ink)) 8%,
+    rgb(var(--ink)) 92%,
+    rgba(var(--ink), 0.85) 100%
+  );
+  color: #1a1810;
+  padding: 0.12em 0.14em;
+  margin: 0 -0.04em;
+  border-radius: 2px;
+  cursor: pointer;
+  /* Each wrapped line gets its own stroke instead of one stretched box. */
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  transition: filter 0.12s ease;
+}
+
+mark.cp-hl:hover { filter: brightness(1.07) saturate(1.1); }
+
+mark.cp-hl[data-cp-color="yellow"] { --ink: 245, 197, 24; }
+mark.cp-hl[data-cp-color="green"]  { --ink: 79, 201, 122; }
+mark.cp-hl[data-cp-color="blue"]   { --ink: 69, 174, 232; }
+mark.cp-hl[data-cp-color="pink"]   { --ink: 242, 114, 152; }
+mark.cp-hl[data-cp-color="purple"] { --ink: 155, 123, 240; }
+
+/* An annotated passage carries a dotted rule, the way a reader underlines the
+   bit they wrote about in the margin. */
+mark.cp-hl[data-cp-note] {
+  box-shadow: inset 0 -2px 0 -1px rgba(26, 24, 16, 0.55);
+}
+
+/* Hovering an entry in the side panel outlines its passage in the page, so the
+   list and the conversation stay connected without having to jump. */
+mark.cp-hl.cp-peek {
+  outline: 2px solid rgba(26, 24, 16, 0.55);
+  outline-offset: 1px;
+}
+
+/* Jump-to-highlight from the panel or the popup. */
+mark.cp-hl.cp-flash { animation: cp-flash 1.1s ease-out; }
+
+@keyframes cp-flash {
+  0%   { filter: brightness(1.28) saturate(1.3); }
+  45%  { filter: brightness(1.28) saturate(1.3); }
+  100% { filter: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  mark.cp-hl { transition: none; }
+  mark.cp-hl.cp-flash {
+    animation: none;
+    outline: 2px solid rgba(26, 24, 16, 0.8);
+    outline-offset: 1px;
+  }
+}

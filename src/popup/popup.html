@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ChatPlug Highlights</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header class="head">
+    <div class="eyebrow">
+      <span>Highlights</span>
+      <span class="count" id="count" aria-live="polite"></span>
+    </div>
+    <h1 class="convo" id="convo">Loading…</h1>
+  </header>
+
+  <div class="filters" id="filters" role="group" aria-label="Filter by colour" hidden></div>
+
+  <main class="list" id="list" tabindex="-1"></main>
+
+  <footer class="foot" id="foot" hidden>
+    <button type="button" class="btn btn-accent" id="openPanel">Open in chat</button>
+    <button type="button" class="btn" id="copyAll">Copy all</button>
+    <button type="button" class="btn" id="exportMd">Export .md</button>
+    <span class="spacer"></span>
+    <button type="button" class="btn btn-quiet" id="clear">Clear</button>
+    <span class="confirm" id="confirm" hidden>
+      <button type="button" class="btn btn-danger" id="clearYes">Clear all</button>
+      <button type="button" class="btn btn-quiet" id="clearNo">Keep</button>
+    </span>
+  </footer>
+
+  <script src="../shared/palette.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

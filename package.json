@@ -1,0 +1,12 @@
+{
+  "name": "chatplug",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Browser extension that highlights, colour-codes and annotates text in ChatGPT conversations.",
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  },
+  "devDependencies": {
+    "jsdom": "^29.1.1"
+  }
+}
