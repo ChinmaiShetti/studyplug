@@ -29,6 +29,7 @@ back with that highlight's controls.
 | Add or edit a note | Click the highlight → pencil (<kbd>Ctrl</kbd>+<kbd>Enter</kbd> saves, <kbd>Esc</kbd> cancels) |
 | Copy the passage | Click the highlight → copy icon |
 | Remove | Click the highlight → trash icon |
+| Undo | The **Undo** on the toast, the arrow in the panel header, or <kbd>Ctrl</kbd>+<kbd>Z</kbd> while the panel is open |
 | Dismiss the tray | <kbd>Esc</kbd>, or click elsewhere |
 | Rename a category | Panel group header → pencil (<kbd>Enter</kbd> saves, <kbd>Esc</kbd> cancels) |
 | Open / close the side panel | <kbd>Alt</kbd>+<kbd>H</kbd>, the edge tab, or popup → **Open in chat** |
@@ -69,6 +70,27 @@ their next deploy. Its open/closed state is remembered between visits.
 
 The edge tab that opens it only appears once the conversation has at least one
 highlight; before that, <kbd>Alt</kbd>+<kbd>H</kbd> still works.
+
+## Undo
+
+Deleting a highlight throws away something you chose to keep, so nothing
+destructive is final. Removing one, clearing a conversation, changing a colour,
+editing a note, and replacing a highlight by re-marking over it are all
+reversible — the last ten, anyway.
+
+Reach it from the **Undo** on the toast that follows a delete, the arrow in the
+panel header (which appears only when there is something to take back), or
+<kbd>Ctrl</kbd>+<kbd>Z</kbd> while the panel is open. It is deliberately scoped
+to the panel: inside ChatGPT's own page, <kbd>Ctrl</kbd>+<kbd>Z</kbd> belongs to
+whatever you are doing there, and the check looks through shadow roots so it
+never fires while you are typing a note.
+
+Each action records its own inverse rather than a snapshot, described as
+"restore these, delete those, set these fields". Re-marking a passage needs two
+of those at once — bring back what it displaced *and* remove what it added — and
+a plain list of deleted items could not express that. If a restored highlight's
+turn has scrolled out of the DOM in the meantime it stays in the record and the
+toast says so; it repaints when that turn loads again.
 
 ## Naming your categories
 
@@ -210,12 +232,13 @@ src/content/
   core.js                namespace, palette, shared helpers
   anchor.js              selection → stored range, painting it back, reading order
   store.js               chrome.storage layer, conversation identity
+  undo.js                the undo stack (DOM work injected, so it is testable)
   ui.js                  floating tray (shadow DOM)
   panel.js               in-page side panel (shadow DOM)
   main.js                events, state, panel API, popup channel
   content.css            how a mark looks on the page
 src/popup/               toolbar popup: flat list, filters, export
-test/                    jsdom tests: anchoring, ordering, palette
+test/                    jsdom tests: anchoring, ordering, palette, undo
 ```
 
 `main.js` owns the state; the panel reads through a small API it is handed at
@@ -231,7 +254,7 @@ npm install
 npm test
 ```
 
-Thirty-two tests cover the parts most likely to break: painting across element
+Forty-four tests cover the parts most likely to break: painting across element
 boundaries, leaving message text byte-identical, exact DOM restoration on
 removal, repainting after a simulated re-render, re-anchoring after a turn is
 regenerated, refusing to paint when the passage no longer exists, sorting into

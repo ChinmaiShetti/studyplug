@@ -60,58 +60,27 @@
 
   /* ---------- undo ---------- */
 
-  /* Deleting a highlight throws away something the reader chose to keep, and
-     until now it was immediate and permanent. Every destructive path records
-     its own inverse here instead.
-
-     One shape covers all of them: put `restore` back, delete `remove`, and
-     re-apply the field values in `set`. A re-mark that replaced an existing
-     highlight is both at once — restore what it displaced, delete what it
-     added — which a plain "deleted items" stack could not express. */
-  const UNDO_LIMIT = 10;
-  const undoStack = [];
-
-  const pushUndo = (entry) => {
-    undoStack.push(entry);
-    if (undoStack.length > UNDO_LIMIT) undoStack.shift();
-  };
-
+  const undoer = CP.createUndo();
+  const pushUndo = (entry) => undoer.push(entry);
   const snapshot = (h) => ({ ...h });
 
   const undo = async () => {
-    const entry = undoStack.pop();
-    if (!entry || !record) {
+    if (!record) return;
+    const result = undoer.undo(record.items, {
+      onUnpaint: (id) => CP.unpaint(id),
+      onPaint: (h) => CP.paint(h),
+      onSet: (h) => CP.recolor(h.id, h.color, h.note)
+    });
+    if (!result) {
       CP.ui.toast('Nothing to undo');
       return;
     }
 
-    for (const id of entry.remove || []) {
-      CP.unpaint(id);
-      record.items = record.items.filter((h) => h.id !== id);
-    }
-
-    let unpainted = 0;
-    const present = new Set(record.items.map((h) => h.id));
-    for (const h of entry.restore || []) {
-      if (present.has(h.id)) continue;
-      record.items.push(h);
-      /* The turn may have scrolled out of the DOM since. The record is still
-         correct — restoreAll paints it when the turn loads again. */
-      if (!CP.paint(h)) unpainted++;
-    }
-
-    for (const change of entry.set || []) {
-      const h = byId(change.id);
-      if (!h) continue;
-      if ('color' in change) h.color = change.color;
-      if ('note' in change) h.note = change.note;
-      CP.recolor(h.id, h.color, h.note);
-    }
-
+    record.items = result.items;
     await persist();
     CP.ui.close();
     CP.ui.toast(
-      unpainted ? `${entry.undoLabel} · ${unpainted} not on screen` : entry.undoLabel
+      result.unpainted ? `${result.label} · ${result.unpainted} not on screen` : result.label
     );
   };
 
@@ -461,7 +430,7 @@
     setNote: (id, note) => setNote(id, note),
     remove: removeOne,
     undo,
-    canUndo: () => undoStack.length > 0
+    canUndo: () => undoer.canUndo()
   });
   CP.panel.restoreState();
 

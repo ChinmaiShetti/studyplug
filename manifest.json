@@ -35,6 +35,7 @@
         "src/content/core.js",
         "src/content/anchor.js",
         "src/content/store.js",
+        "src/content/undo.js",
         "src/content/ui.js",
         "src/content/panel.js",
         "src/content/main.js"
