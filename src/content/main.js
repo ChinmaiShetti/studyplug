@@ -266,6 +266,42 @@
     }, 0);
   }, true);
 
+  /* ChatGPT focuses its composer as soon as it sees a keystroke that is not
+     already going into a field. It cannot see into our shadow roots: the event
+     retargets to the host, which is a plain <div>, so it decides nobody is
+     typing and pulls focus away mid-word.
+
+     Listening on window in the capture phase puts us ahead of the page's own
+     document-level handler, which is the only place this can be stopped —
+     a listener on the field itself runs in the bubble phase, long after the
+     page has already acted. */
+  const typingInOurUi = (e) => {
+    const path = typeof e.composedPath === 'function' ? e.composedPath() : [];
+    let inField = false;
+    for (const node of path) {
+      if (!node || node.nodeType !== Node.ELEMENT_NODE) continue;
+      if (node.tagName === 'INPUT' || node.tagName === 'TEXTAREA' || node.isContentEditable) {
+        inField = true;
+      }
+      /* Reached one of our shadow hosts: report whether a field of ours was
+         on the way. Past this point the path is the page, not us. */
+      if (node.dataset?.cpUi) return inField;
+    }
+    return false;
+  };
+
+  /* Stopping a capture-phase event halts it before it reaches the target, so
+     the keys our own fields act on have to be let through — otherwise Enter
+     and Escape would never reach the rename box. None of them are what makes
+     the page grab focus; typing is. */
+  const OUR_FIELD_KEYS = new Set(['Enter', 'Escape', 'Tab']);
+
+  for (const type of ['keydown', 'keypress', 'keyup', 'beforeinput']) {
+    window.addEventListener(type, (e) => {
+      if (typingInOurUi(e) && !OUR_FIELD_KEYS.has(e.key)) e.stopPropagation();
+    }, true);
+  }
+
   document.addEventListener('keyup', (e) => {
     if (!e.shiftKey || isEditable(document.activeElement)) return;
     if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(e.key)) return;

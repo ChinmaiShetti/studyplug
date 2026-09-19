@@ -601,7 +601,14 @@
         panel.refresh();
       }
     });
-    input.addEventListener('blur', commit);
+    /* Clicking away saves, but focus leaving because the *page* grabbed it must
+       not: that would store half a word, or wipe the name with an empty one.
+       In that case leave the field open, still holding what was typed. */
+    input.addEventListener('blur', (e) => {
+      const next = e.relatedTarget;
+      if (next && !root.contains(next)) return; // root.contains sees our shadow tree
+      commit();
+    });
 
     /* The field is created during a render, so focus after it is in the DOM. */
     queueMicrotask(() => { input.focus(); input.select(); });

@@ -280,3 +280,27 @@ while still painting the whitespace inside a code block.
   conversation; close it with <kbd>Alt</kbd>+<kbd>H</kbd>.
 - **Firefox** needs `browser_specific_settings.gecko.id` added to the manifest;
   everything else is standard MV3.
+
+## Typing inside the extension's own UI
+
+ChatGPT focuses its composer as soon as it sees a keystroke that is not already
+going into a field. It cannot see into ChatPlug's shadow roots: from a listener
+on the page, an event raised inside one **retargets to the host**, which is a
+plain `<div>`. So the page concludes nobody is typing, pulls focus to "Ask
+anything" mid-word, and the rename box loses what you wrote.
+
+A listener on the field itself cannot stop that — the page acts in the capture
+phase, long before the event reaches the field. The guard therefore sits on
+`window` in the capture phase (`typingInOurUi` in `src/content/main.js`), ahead
+of the page's own document-level handler, and uses `composedPath()` to see
+through the shadow boundary the page cannot.
+
+Two details it depends on:
+
+- <kbd>Enter</kbd>, <kbd>Esc</kbd> and <kbd>Tab</kbd> are let through. Stopping a
+  capture-phase event halts it *before* the target, so swallowing these would
+  mean the rename box never sees its own Enter. None of them are what makes the
+  page grab focus; typing is.
+- Focus leaving the rename box only saves when it moved somewhere inside the
+  panel. If the page takes it, the field stays open holding what you typed,
+  rather than storing half a word or wiping the name with an empty one.
