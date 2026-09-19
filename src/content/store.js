@@ -1,11 +1,11 @@
-/* ChatPlug — persistence, from the page's side.
+/* StudyPlug — persistence, from the page's side.
 
    The storage layout and its readers live in src/shared/records.js so the popup
    and the library can use them too. What stays here is the part only a ChatGPT
    page can answer: which conversation this is, and what it is called. */
 (() => {
-  const CP = window.__chatplug__;
-  const R = (CP.RECORDS = globalThis.ChatPlugRecords);
+  const CP = window.__studyplug__;
+  const R = (CP.RECORDS = globalThis.StudyPlugRecords);
 
   CP.INDEX_KEY = R.INDEX_KEY;
   CP.convKey = R.convKey;

@@ -1,4 +1,4 @@
-/* ChatPlug — the library.
+/* StudyPlug — the library.
 
    Same three type roles as the panel, so this reads as the same product at a
    larger size: serif for the passages you saved, mono for what the tool says
@@ -402,3 +402,60 @@ body {
   .card { grid-template-columns: 1fr; }
   .go { opacity: 1; justify-self: start; }
 }
+
+/* ---------- export, backup, restore ---------- */
+
+.tallyrow {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  max-width: 1080px;
+  margin: 0 auto;
+}
+
+.tallyrow .tally { flex: 1; padding-bottom: 0; }
+
+.actions { display: flex; gap: 6px; padding-bottom: 12px; }
+
+.act {
+  height: 27px;
+  padding: 0 10px;
+  border: 1px solid var(--edge);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  font-family: var(--sans);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.act:hover { background: var(--paper-sunk); }
+.act[disabled] { opacity: 0.45; pointer-events: none; }
+
+.act.danger { border-color: #c9453a; color: #c9453a; }
+.act.danger:hover { background: rgba(201, 69, 58, 0.12); }
+
+/* Restore is the one irreversible action, so it asks in place rather than
+   behind a dialog you can dismiss without reading. */
+.notice {
+  max-width: 1080px;
+  margin: 0 auto 12px;
+  padding: 10px 13px;
+  border: 1px solid var(--edge);
+  border-left: 3px solid var(--gc, var(--focus));
+  border-radius: 7px;
+  background: var(--paper-sunk);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.notice[hidden] { display: none; }
+.notice .grow { flex: 1; min-width: 12ch; }
+.notice.bad { border-left-color: #c9453a; }
+.notice.good { border-left-color: #4fc97a; }

@@ -1,12 +1,25 @@
 {
-  "name": "chatplug",
+  "name": "studyplug",
   "version": "1.0.0",
   "private": true,
-  "description": "Browser extension that highlights, colour-codes and annotates text in ChatGPT conversations.",
+  "description": "Browser extension that highlights, colour-codes and annotates text in ChatGPT conversations, with a searchable library across every chat.",
   "scripts": {
-    "test": "node --test test/*.test.js"
+    "test": "node --test test/*.test.js",
+    "lint": "eslint src test scripts",
+    "check:structure": "node scripts/check-structure.mjs",
+    "check": "npm run lint && npm run check:structure && npm test"
   },
   "devDependencies": {
+    "eslint": "^10.11.0",
     "jsdom": "^29.1.1"
-  }
+  },
+  "license": "MIT",
+  "keywords": [
+    "chatgpt",
+    "browser-extension",
+    "chrome-extension",
+    "highlighter",
+    "annotations",
+    "manifest-v3"
+  ]
 }

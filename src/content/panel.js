@@ -1,4 +1,4 @@
-/* ChatPlug — the in-page panel.
+/* StudyPlug — the in-page panel.
 
    Docks to the right of the conversation and lists every highlight in the chat,
    grouped by colour and ordered the way they appear in the conversation, not
@@ -8,7 +8,7 @@
    Overlays rather than reflows: ChatGPT's layout is a nest of flex containers
    and pushing it around is the kind of thing that breaks on their next deploy. */
 (() => {
-  const CP = window.__chatplug__;
+  const CP = window.__studyplug__;
 
   const WIDTH = 336;
 
@@ -397,6 +397,55 @@
     }
     .empty p { margin: 0; font-size: 12.5px; line-height: 1.55; }
 
+    /* ---------- selecting several at once ---------- */
+
+    .tick {
+      flex: 0 0 auto;
+      width: 15px;
+      height: 15px;
+      margin-top: 1px;
+      border: 1.5px solid var(--ink-faint);
+      border-radius: 4px;
+      display: none;
+      place-items: center;
+      color: transparent;
+    }
+    :host([data-selecting="1"]) .tick { display: grid; }
+    .entry[data-picked="1"] .tick {
+      background: var(--gc);
+      border-color: var(--gc);
+      color: #1a1810;
+    }
+    .tick svg { width: 10px; height: 10px; }
+    .entry[data-picked="1"] { background-color: var(--paper-sunk); }
+
+    /* In select mode the row is a target, not a disclosure. */
+    :host([data-selecting="1"]) .detail { display: none; }
+
+    .bulk {
+      flex: 0 0 auto;
+      display: none;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 9px 12px;
+      border-top: 1px solid var(--edge);
+      background: var(--paper);
+    }
+    :host([data-selecting="1"]) .bulk { display: flex; }
+    /* The count takes its own line: the panel is 336px and the controls do not
+       fit beside it without clipping the last one. */
+    .bulk .count {
+      flex: 1 0 100%;
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--ink-faint);
+    }
+    .bulk .spacer { flex: 1; }
+    .bulk .recolor { gap: 2px; }
+
     @media (prefers-reduced-motion: reduce) {
       .panel, .caret, .handle { transition: none; }
     }
@@ -404,6 +453,8 @@
 
   const ICONS = {
     close: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>',
+    tick:  '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 8.4l3 3 6-6.5"/></svg>',
+    pick:  '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.3" y="2.3" width="11.4" height="11.4" rx="2.4"/><path d="M5.2 8.2l2.1 2.1 3.6-4"/></svg>',
     library: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.6 3.4h3.1v9.2H2.6zM6.9 3.4H10v9.2H6.9zM11.4 4l2.1 8.4"/></svg>',
     undo:  '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3.2 7.4h6.4a3.2 3.2 0 0 1 0 6.4H6.5M3.2 7.4l3-3M3.2 7.4l3 3"/></svg>',
     caret: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6.5l4 4 4-4"/></svg>',
@@ -415,13 +466,16 @@
   };
 
   const panel = (CP.panel = {});
-  let host, root, shell, bodyEl, titleEl, countEl, handleEl, handleCount, undoBtn;
+  let host, root, shell, bodyEl, titleEl, countEl, handleEl, handleCount;
+  let undoBtn, pickBtn, bulkEl, bulkCount;
   let api = null;
   let open = false;
   const expanded = new Set();     // entry ids currently opened
   const collapsed = new Set();    // colour groups the user folded away
   let editing = null;             // id of the entry whose note is being edited
   let renaming = null;            // colour key whose category name is being typed
+  let selecting = false;          // multi-select mode
+  const picked = new Set();       // entry ids ticked while selecting
 
   const hexOf = (key) => CP.PALETTE.hexOf(key);
   const labelOf = (key) => CP.PALETTE.labelOf(key);
@@ -463,10 +517,21 @@
     if (editing === h.id) wrap.dataset.note = '1';
 
     /* Summary — click to open the passage in full. */
+    if (picked.has(h.id)) wrap.dataset.picked = '1';
+
     const sum = document.createElement('button');
     sum.type = 'button';
     sum.className = 'summary';
     sum.setAttribute('aria-expanded', String(expanded.has(h.id)));
+    if (selecting) {
+      sum.removeAttribute('aria-expanded');
+      sum.setAttribute('aria-pressed', String(picked.has(h.id)));
+    }
+
+    const tick = document.createElement('span');
+    tick.className = 'tick';
+    tick.innerHTML = ICONS.tick;
+    sum.append(tick);
 
     const idx = document.createElement('span');
     idx.className = 'idx';
@@ -490,6 +555,12 @@
     }
 
     sum.addEventListener('click', () => {
+      if (selecting) {
+        if (picked.has(h.id)) picked.delete(h.id);
+        else picked.add(h.id);
+        panel.refresh();
+        return;
+      }
       if (expanded.has(h.id)) expanded.delete(h.id);
       else expanded.add(h.id);
       if (editing === h.id) editing = null;
@@ -704,13 +775,15 @@
     countEl = document.createElement('span');
     const spacer = document.createElement('span');
     spacer.className = 'spacer';
+    pickBtn = mkIcon('iconbtn', 'Select several', ICONS.pick, () => panel.setSelecting(!selecting));
+
     const libraryBtn = mkIcon('iconbtn', 'Everything you have marked, across all chats',
       ICONS.library, () => api?.openLibrary?.());
 
     undoBtn = mkIcon('iconbtn', 'Undo (Ctrl+Z)', ICONS.undo, () => api?.undo?.());
     undoBtn.hidden = true;
 
-    eyebrow.append(label, countEl, spacer, libraryBtn, undoBtn,
+    eyebrow.append(label, countEl, spacer, pickBtn, libraryBtn, undoBtn,
       mkIcon('iconbtn', 'Close (Alt+H)', ICONS.close, () => panel.setOpen(false)));
 
     titleEl = document.createElement('h2');
@@ -720,10 +793,113 @@
     bodyEl = document.createElement('div');
     bodyEl.className = 'body';
 
-    shell.append(head, bodyEl);
+    /* Acts on everything ticked, so it sits where the ticks are. */
+    bulkEl = document.createElement('div');
+    bulkEl.className = 'bulk';
+
+    bulkCount = document.createElement('span');
+    bulkCount.className = 'count';
+
+    const bulkSpacer = document.createElement('span');
+    bulkSpacer.className = 'spacer';
+
+    const bulkInks = document.createElement('div');
+    bulkInks.className = 'recolor';
+    for (const c of CP.COLORS) {
+      const d = document.createElement('button');
+      d.type = 'button';
+      d.className = 'dot';
+      d.style.setProperty('--d', c.hex);
+      d.title = `Move ${c.label}`;
+      d.setAttribute('aria-label', d.title);
+      d.innerHTML = '<i></i>';
+      d.addEventListener('click', () => {
+        if (!picked.size) return;
+        api?.setColorMany?.([...picked], c.key);
+        panel.setSelecting(false);
+      });
+      bulkInks.append(d);
+    }
+
+    bulkEl.append(
+      bulkCount,
+      bulkSpacer,
+      bulkInks,
+      mkAct('Copy', ICONS.copy, () => {
+        api?.copyMany?.([...picked]);
+        panel.setSelecting(false);
+      }),
+      mkAct('Remove', ICONS.trash, () => {
+        if (!picked.size) return;
+        api?.removeMany?.([...picked]);
+        panel.setSelecting(false);
+      }, 'danger'),
+      mkAct('Done', null, () => panel.setSelecting(false))
+    );
+
+    shell.append(head, bodyEl, bulkEl);
     root.append(style, handleEl, shell);
     document.body.appendChild(host);
+    wireKeys();
     syncTheme();
+  };
+
+  /* Keyboard work happens inside the panel only, so reading the conversation
+     is never interrupted by a stray keystroke. Moving the cursor moves real
+     focus, which keeps the focus ring and screen readers in step for free. */
+  const wireKeys = () => {
+    shell.addEventListener('keydown', (e) => {
+      const target = e.target;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+      const rows = [...root.querySelectorAll('.summary')];
+      if (!rows.length) return;
+
+      const here = root.activeElement?.closest?.('.summary');
+      const at = here ? rows.indexOf(here) : -1;
+      const focusAt = (i) => {
+        const next = rows[Math.max(0, Math.min(rows.length - 1, i))];
+        next?.focus();
+        next?.scrollIntoView({ block: 'nearest' });
+      };
+
+      switch (e.key) {
+        case 'j': case 'ArrowDown':
+          e.preventDefault(); focusAt(at + 1); break;
+        case 'k': case 'ArrowUp':
+          e.preventDefault(); focusAt(at <= 0 ? 0 : at - 1); break;
+        case 'g': {
+          const id = here?.closest('[data-entry]')?.dataset.entry;
+          if (id) { e.preventDefault(); api?.jump?.(id); }
+          break;
+        }
+        case 'x': {
+          const id = here?.closest('[data-entry]')?.dataset.entry;
+          if (!id) break;
+          e.preventDefault();
+          if (!selecting) { selecting = true; host.setAttribute('data-selecting', '1'); }
+          if (picked.has(id)) picked.delete(id); else picked.add(id);
+          panel.refresh();
+          /* The list was rebuilt; put the cursor back where it was. */
+          [...root.querySelectorAll('.summary')][at]?.focus();
+          break;
+        }
+        case 'Escape':
+          if (selecting) { e.preventDefault(); panel.setSelecting(false); }
+          break;
+        default:
+          break;
+      }
+    });
+  };
+
+  panel.setSelecting = (on) => {
+    selecting = !!on;
+    picked.clear();
+    host.setAttribute('data-selecting', selecting ? '1' : '');
+    if (selecting) expanded.clear();
+    panel.refresh();
   };
 
   panel.init = (a) => {
@@ -757,6 +933,11 @@
     titleEl.title = api.title();
     /* Only offered when there is actually something to take back. */
     undoBtn.hidden = !api.canUndo?.();
+    pickBtn.hidden = !items.length;
+    pickBtn.setAttribute('aria-pressed', String(selecting));
+    bulkCount.textContent = picked.size
+      ? `${picked.size} selected`
+      : 'Tick the ones to act on';
     countEl.textContent = items.length ? String(items.length) : '';
     handleCount.textContent = items.length ? String(items.length) : '';
     handleEl.dataset.show = items.length ? '1' : '';

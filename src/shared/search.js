@@ -1,4 +1,4 @@
-/* ChatPlug — searching highlights.
+/* StudyPlug — searching highlights.
 
    Plain case-insensitive substring matching over the passage and its note. For
    the volumes involved — thousands of highlights at the very most — that is
@@ -76,5 +76,5 @@
     });
   };
 
-  globalThis.ChatPlugSearch = { terms, matches, segments, filter };
+  globalThis.StudyPlugSearch = { terms, matches, segments, filter };
 })();

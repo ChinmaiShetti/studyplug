@@ -1,4 +1,4 @@
-/* ChatPlug — the highlight panel.
+/* StudyPlug — the highlight panel.
 
    Three type roles, and they mean something:
      serif  — the passages you saved, because that is reading matter
@@ -42,8 +42,10 @@
 
 * { box-sizing: border-box; }
 
+/* Wide enough for the footer row: five controls at 384px clipped the last one,
+   and shortening their labels cost more than the extra pixels. */
 body {
-  width: 384px;
+  width: 424px;
   max-height: 560px;
   margin: 0;
   display: flex;

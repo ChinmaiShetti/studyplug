@@ -1,13 +1,13 @@
-/* ChatPlug — shared namespace, constants, small helpers.
-   Loaded first; every other content script hangs off window.__chatplug__. */
+/* StudyPlug — shared namespace, constants, small helpers.
+   Loaded first; every other content script hangs off window.__studyplug__. */
 (() => {
-  const CP = (window.__chatplug__ = window.__chatplug__ || {});
+  const CP = (window.__studyplug__ = window.__studyplug__ || {});
 
   /* The palette lives in src/shared/palette.js so the popup and the library can
      load it too. CP.COLORS is that module's live array — its `label` fields are
      mutated in place when custom category names load or change, so re-rendering
      is enough to pick a rename up. */
-  CP.PALETTE = globalThis.ChatPlugPalette;
+  CP.PALETTE = globalThis.StudyPlugPalette;
   CP.COLORS = CP.PALETTE.colors;
   CP.COLOR_KEYS = CP.PALETTE.keys;
   CP.DEFAULT_COLOR = 'yellow';

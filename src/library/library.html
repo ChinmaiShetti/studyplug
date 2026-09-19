@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ChatPlug Library</title>
+  <title>StudyPlug Library</title>
   <link rel="icon" href="../../icons/icon32.png">
   <link rel="stylesheet" href="library.css">
 </head>
@@ -11,7 +11,7 @@
   <header class="head">
     <div class="bar">
       <div class="brand">
-        <span class="eyebrow">ChatPlug</span>
+        <span class="eyebrow">StudyPlug</span>
         <h1>Library</h1>
       </div>
 
@@ -41,7 +41,16 @@
       </div>
     </div>
 
-    <p class="tally" id="tally" aria-live="polite"></p>
+    <div class="tallyrow">
+      <p class="tally" id="tally" aria-live="polite"></p>
+      <div class="actions">
+        <button type="button" class="act" id="exportMd">Export .md</button>
+        <button type="button" class="act" id="backup">Back up</button>
+        <button type="button" class="act" id="restore">Restore</button>
+        <input type="file" id="restoreFile" accept="application/json,.json" hidden>
+      </div>
+    </div>
+    <p class="notice" id="notice" role="status" hidden></p>
   </header>
 
   <main id="results" class="results"></main>
@@ -49,6 +58,7 @@
   <script src="../shared/palette.js"></script>
   <script src="../shared/records.js"></script>
   <script src="../shared/search.js"></script>
+  <script src="../shared/export.js"></script>
   <script src="library.js"></script>
 </body>
 </html>

@@ -1,4 +1,4 @@
-/* ChatPlug — undo.
+/* StudyPlug — undo.
 
    Deleting a highlight throws away something the reader chose to keep, so
    every destructive path records its own inverse instead of just doing it.
@@ -15,7 +15,7 @@
    The DOM work is injected, so the stack itself is pure list handling and can
    be tested without a page. */
 (() => {
-  const CP = window.__chatplug__;
+  const CP = window.__studyplug__;
 
   CP.createUndo = ({ limit = 10 } = {}) => {
     const stack = [];

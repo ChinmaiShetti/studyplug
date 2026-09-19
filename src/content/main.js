@@ -1,11 +1,11 @@
-/* ChatPlug — wiring.
+/* StudyPlug — wiring.
 
    Owns the in-page state, listens for selections and clicks, keeps the
    painted DOM in step with storage, and answers the popup. */
 (() => {
-  const CP = window.__chatplug__;
-  if (window.__chatplugLoaded) return;
-  window.__chatplugLoaded = true;
+  const CP = window.__studyplug__;
+  if (window.__studyplugLoaded) return;
+  window.__studyplugLoaded = true;
 
   let convId = null;
   let record = null;
@@ -221,6 +221,51 @@
     await persist();
     CP.ui.close();
     CP.ui.toast(`${all.length} highlights cleared`, { label: 'Undo', onAction: undo });
+  };
+
+  /* Bulk actions push one undo entry, not one per highlight: taking back a
+     bulk delete should be a single step, the way making it was. */
+  const removeMany = async (ids) => {
+    if (!record || !ids?.length) return;
+    const wanted = new Set(ids);
+    const gone = record.items.filter((h) => wanted.has(h.id)).map(snapshot);
+    if (!gone.length) return;
+    pushUndo({ undoLabel: `${gone.length} highlights restored`, restore: gone });
+
+    for (const h of gone) CP.unpaint(h.id);
+    const doomed = new Set(gone.map((h) => h.id));
+    record.items = record.items.filter((h) => !doomed.has(h.id));
+    await persist();
+    CP.ui.close();
+    CP.ui.toast(
+      `${gone.length} ${gone.length === 1 ? 'highlight' : 'highlights'} removed`,
+      { label: 'Undo', onAction: undo }
+    );
+  };
+
+  const setColorMany = async (ids, color) => {
+    if (!record || !ids?.length) return;
+    const wanted = new Set(ids);
+    const changing = record.items.filter((h) => wanted.has(h.id) && h.color !== color);
+    if (!changing.length) return;
+    pushUndo({
+      undoLabel: `${changing.length} moved back`,
+      set: changing.map((h) => ({ id: h.id, color: h.color }))
+    });
+
+    for (const h of changing) {
+      h.color = color;
+      CP.recolor(h.id, color, h.note);
+    }
+    await persist();
+    CP.ui.toast(`${changing.length} moved to ${CP.labelOf(color)}`);
+  };
+
+  const copyMany = (ids) => {
+    if (!record || !ids?.length) return;
+    const wanted = new Set(ids);
+    const chosen = CP.inReadingOrder(record.items.filter((h) => wanted.has(h.id)));
+    copyText(chosen.map((h) => (h.note ? `${h.text}\n— ${h.note}` : h.text)).join('\n\n'));
   };
 
   const copyText = async (text) => {
@@ -456,6 +501,12 @@
           reply(jumpTo(msg.id) ? { ok: true } : { ok: false, reason: 'not-loaded' });
           break;
 
+        case 'CP_HIGHLIGHT_SELECTION':
+          /* The selection is still live when a context-menu item is chosen,
+             so this is the same path as clicking a colour in the tray. */
+          reply({ ok: await addFromSelection(msg.color) });
+          break;
+
         case 'CP_PANEL':
           CP.panel.setOpen(msg.open !== false);
           reply({ ok: true });
@@ -495,6 +546,9 @@
     setColor,
     setNote: (id, note) => setNote(id, note),
     remove: removeOne,
+    removeMany,
+    setColorMany,
+    copyMany,
     undo,
     canUndo: () => undoer.canUndo(),
     openLibrary: () => chrome.runtime.sendMessage({ type: 'CP_OPEN_LIBRARY' })

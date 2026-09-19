@@ -1,4 +1,4 @@
-/* ChatPlug — the library.
+/* StudyPlug — the library.
 
    Every highlight across every conversation, searchable. An extension page
    rather than a bigger popup: a popup closes on any outside click, which makes
@@ -7,9 +7,9 @@
    Read-only over storage. Editing stays where the passage is — this page hands
    you back to the conversation. */
 
-const PALETTE = globalThis.ChatPlugPalette;
-const RECORDS = globalThis.ChatPlugRecords;
-const SEARCH = globalThis.ChatPlugSearch;
+const PALETTE = globalThis.StudyPlugPalette;
+const RECORDS = globalThis.StudyPlugRecords;
+const SEARCH = globalThis.StudyPlugSearch;
 
 const ARROW = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h9M8.5 4l4 4-4 4"/></svg>';
 
@@ -165,6 +165,7 @@ const renderSwatches = () => {
     b.type = 'button';
     b.className = 'swatch';
     b.style.setProperty('--sw', c.hex);
+    b.dataset.key = c.key;
     b.setAttribute('aria-pressed', String(colors.has(c.key)));
     if (!n) b.dataset.empty = '1';
 
@@ -197,8 +198,7 @@ const render = () => {
     b.setAttribute('aria-pressed', String(b.dataset.group === grouping));
   }
   for (const b of el.swatches.children) {
-    const key = PALETTE.colors[[...el.swatches.children].indexOf(b)]?.key;
-    b.setAttribute('aria-pressed', String(colors.has(key)));
+    b.setAttribute('aria-pressed', String(colors.has(b.dataset.key)));
   }
 
   const filtered = shown.length !== all.length;
@@ -322,3 +322,129 @@ try {
     }
   });
 } catch { /* not an extension context */ }
+
+/* ---------- export, backup, restore ---------- */
+
+const EXPORT = globalThis.StudyPlugExport;
+
+const actions = {
+  exportMd: document.getElementById('exportMd'),
+  backup: document.getElementById('backup'),
+  restore: document.getElementById('restore'),
+  restoreFile: document.getElementById('restoreFile'),
+  notice: document.getElementById('notice')
+};
+
+const say = (text, tone) => {
+  actions.notice.replaceChildren(document.createTextNode(text));
+  actions.notice.className = 'notice' + (tone ? ' ' + tone : '');
+  actions.notice.hidden = false;
+};
+
+const hush = () => { actions.notice.hidden = true; };
+
+const download = (text, filename, type) => {
+  const url = URL.createObjectURL(new Blob([text], { type }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+};
+
+const stamp = () => new Date().toISOString().slice(0, 10);
+
+/* Exports exactly what is on screen — the filters are part of the question you
+   are asking, so they should be part of the answer you take away. */
+actions.exportMd.addEventListener('click', () => {
+  const shown = SEARCH.filter(all, { query, colors, role });
+  if (!shown.length) return say('Nothing to export with these filters.', 'bad');
+
+  const md = EXPORT.toMarkdown(shown, {
+    title: query ? `ChatGPT highlights — "${query}"` : 'ChatGPT highlights',
+    groupBy: grouping === 'category' ? 'category' : 'conversation',
+    labelOf: (k) => PALETTE.labelOf(k),
+    colorOrder: PALETTE.keys,
+    showSource: true
+  });
+  download(md, `studyplug-highlights-${stamp()}.md`, 'text/markdown');
+  say(`Exported ${shown.length} ${shown.length === 1 ? 'highlight' : 'highlights'}.`, 'good');
+});
+
+actions.backup.addEventListener('click', async () => {
+  const conversations = await RECORDS.loadAll();
+  if (!conversations.length) return say('There is nothing to back up yet.', 'bad');
+
+  const labels = (await RECORDS.get(PALETTE.LABELS_KEY))[PALETTE.LABELS_KEY] || {};
+  const count = conversations.reduce((n, c) => n + c.items.length, 0);
+  download(JSON.stringify(EXPORT.toBackup({ conversations, labels }), null, 2),
+    `studyplug-backup-${stamp()}.json`, 'application/json');
+  say(`Backed up ${count} highlights from ${conversations.length} conversations.`, 'good');
+});
+
+actions.restore.addEventListener('click', () => actions.restoreFile.click());
+
+actions.restoreFile.addEventListener('change', async () => {
+  const file = actions.restoreFile.files?.[0];
+  actions.restoreFile.value = ''; // so the same file can be picked twice
+  if (!file) return;
+
+  const parsed = EXPORT.parseBackup(await file.text());
+  if (!parsed.ok) return say(parsed.error, 'bad');
+
+  const incoming = parsed.data.conversations;
+  const marks = incoming.reduce((n, c) => n + c.items.length, 0);
+
+  /* Restoring is the one action here that cannot be undone, so it says what it
+     found and what each choice would do before anything is written. */
+  actions.notice.replaceChildren();
+  const text = document.createElement('span');
+  text.className = 'grow';
+  text.textContent =
+    `${file.name}: ${marks} highlights in ${incoming.length} conversations` +
+    (parsed.skipped ? ` (${parsed.skipped} unreadable entries skipped).` : '.') +
+    ' Merge keeps what you have and adds anything missing. Replace overwrites the conversations named in the file.';
+
+  const mkBtn = (label, cls, onClick) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'act' + (cls ? ' ' + cls : '');
+    b.textContent = label;
+    b.addEventListener('click', onClick);
+    return b;
+  };
+
+  const apply = async (mode) => {
+    const existing = await RECORDS.loadAll();
+    const { conversations, stats } = EXPORT.planRestore(existing, incoming, mode);
+
+    const writes = {};
+    for (const c of conversations) writes[RECORDS.convKey(c.convId)] = c;
+    if (Object.keys(parsed.data.labels).length) {
+      writes[PALETTE.LABELS_KEY] = { ...parsed.data.labels };
+    }
+    await RECORDS.set(writes);
+    /* The index is derived, so rebuild it rather than trusting the file. */
+    await RECORDS.rebuildIndex(conversations);
+    await PALETTE.refresh();
+
+    all = await RECORDS.loadAllHighlights();
+    renderSwatches();
+    render();
+    say(
+      `Restored ${stats.highlightsAdded} highlights` +
+      (stats.highlightsSkipped ? `, skipped ${stats.highlightsSkipped} already here` : '') +
+      `. Reload any open ChatGPT tab to see them on the page.`,
+      'good'
+    );
+  };
+
+  actions.notice.className = 'notice';
+  actions.notice.hidden = false;
+  actions.notice.append(
+    text,
+    mkBtn('Merge', '', () => apply('merge')),
+    mkBtn('Replace', 'danger', () => apply('replace')),
+    mkBtn('Cancel', '', hush)
+  );
+});

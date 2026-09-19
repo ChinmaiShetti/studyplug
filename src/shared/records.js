@@ -1,4 +1,4 @@
-/* ChatPlug — the stored records.
+/* StudyPlug — the stored records.
 
    Loaded by content scripts and by extension pages (popup, library), so it must
    not assume the content-script namespace or a ChatGPT page. Anything that
@@ -8,6 +8,13 @@
    chrome.storage.local layout:
      cp:conv:<convId> -> { convId, title, url, updated, items: [highlight] }
      cp:index         -> { <convId>: { title, url, count, updated } }
+
+   The `cp:` prefix predates the project being renamed to StudyPlug. It is kept
+   because these keys hold real highlights: renaming them without a migration
+   would orphan every mark anyone has already made, and a migration is a
+   permanent extra code path to buy a tidier string nobody sees. The same goes
+   for the `cp-` CSS classes and data attributes, which are only ever written
+   to a live DOM and are kept aligned with this prefix.
 */
 (() => {
   const INDEX_KEY = 'cp:index';
@@ -142,5 +149,5 @@
     }
   };
 
-  globalThis.ChatPlugRecords = Records;
+  globalThis.StudyPlugRecords = Records;
 })();

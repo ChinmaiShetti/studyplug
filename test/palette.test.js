@@ -27,9 +27,8 @@ function loadPalette({ withStorage = true, seed = {} } = {}) {
   }
 
   const code = fs.readFileSync(SRC, 'utf8');
-  // eslint-disable-next-line no-new-func
   new Function('globalThis', 'chrome', code)(sandbox, sandbox.chrome);
-  return { P: sandbox.ChatPlugPalette, store, sandbox };
+  return { P: sandbox.StudyPlugPalette, store, sandbox };
 }
 
 test('exposes the five keys with fixed hexes', () => {

@@ -1,4 +1,4 @@
-/* ChatPlug — the palette.
+/* StudyPlug — the palette.
 
    Loaded by content scripts and by extension pages (popup, library), so it must
    not assume the content-script namespace exists. It defines itself on
@@ -119,5 +119,5 @@
     }
   };
 
-  globalThis.ChatPlugPalette = Palette;
+  globalThis.StudyPlugPalette = Palette;
 })();

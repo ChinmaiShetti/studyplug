@@ -10,8 +10,7 @@ const SRC = path.join(__dirname, '..', 'src', 'content', 'undo.js');
 
 function loadUndo(options) {
   const CP = {};
-  const sandbox = { window: { __chatplug__: CP } };
-  // eslint-disable-next-line no-new-func
+  const sandbox = { window: { __studyplug__: CP } };
   new Function('window', fs.readFileSync(SRC, 'utf8'))(sandbox.window);
   return CP.createUndo(options);
 }

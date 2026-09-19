@@ -1,4 +1,4 @@
-/* ChatPlug — popup.
+/* StudyPlug — popup.
 
    The content script is the source of truth: it owns both the painted DOM and
    the stored record, so every mutation goes through it and comes back as the
@@ -6,7 +6,8 @@
 
 /* Shared with the content scripts — see src/shared/palette.js. Custom category
    names are loaded before the first render in boot(). */
-const PALETTE = globalThis.ChatPlugPalette;
+const PALETTE = globalThis.StudyPlugPalette;
+const EXPORT = globalThis.StudyPlugExport;
 const COLORS = PALETTE.colors;
 
 const TRASH = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.8 4.3h10.4M6.4 4.3V3a1 1 0 0 1 1-1h1.2a1 1 0 0 1 1 1v1.3M4.2 4.3l.5 8.2a1.2 1.2 0 0 0 1.2 1.1h4.2a1.2 1.2 0 0 0 1.2-1.1l.5-8.2"/></svg>';
@@ -202,27 +203,16 @@ const render = () => {
 
 /* ---------- export ---------- */
 
-const asMarkdown = () => {
-  const items = [...state.items].sort((a, b) => a.ts - b.ts);
-  const lines = [`# ${state.title}`, '', `${items.length} highlights · ${new Date().toLocaleDateString()}`, ''];
-  for (const h of items) {
-    const who = h.role === 'user' ? 'You' : 'ChatGPT';
-    lines.push(`**${who}** · ${labelOf(h.color)}`);
-    lines.push('');
-    lines.push(h.text.split('\n').map((l) => '> ' + l).join('\n'));
-    if (h.note) { lines.push(''); lines.push(`*Note: ${h.note}*`); }
-    lines.push('');
-    lines.push('---');
-    lines.push('');
-  }
-  return lines.join('\n');
-};
+/* Oldest first: an export reads as a document, not as a feed. */
+const byTime = () => [...state.items].sort((a, b) => a.ts - b.ts);
 
-const asPlain = () =>
-  [...state.items]
-    .sort((a, b) => a.ts - b.ts)
-    .map((h) => (h.note ? `${h.text}\n— ${h.note}` : h.text))
-    .join('\n\n');
+const asMarkdown = () => EXPORT.toMarkdown(byTime(), {
+  title: state.title,
+  labelOf,
+  colorOrder: PALETTE.keys
+});
+
+const asPlain = () => EXPORT.toPlain(byTime());
 
 const flash = (btn, word) => {
   const was = btn.textContent;
@@ -295,7 +285,7 @@ el.clearYes.addEventListener('click', async () => {
 
   if (!res?.ok) {
     el.convo.textContent = 'Reload the page';
-    showMessage('ChatPlug is not running here', 'The page was probably open before the extension loaded. Reload the ChatGPT tab and try again.');
+    showMessage('StudyPlug is not running here', 'The page was probably open before the extension loaded. Reload the ChatGPT tab and try again.');
     return;
   }
 

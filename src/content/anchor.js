@@ -1,11 +1,11 @@
-/* ChatPlug — turning a live Selection into a durable anchor, and back again.
+/* StudyPlug — turning a live Selection into a durable anchor, and back again.
 
    A highlight is stored as { msgId, start, end } where start/end are character
    offsets into the concatenated text of one message turn. Offsets are stable
    because wrapping text in <mark> does not change textContent — so we can
    re-paint after React throws the DOM away and rebuilds it. */
 (() => {
-  const CP = window.__chatplug__;
+  const CP = window.__studyplug__;
 
   /* Our own floating UI lives in the page too; it must never count towards
      offsets. Marks deliberately do NOT carry data-cp-ui: their text is real

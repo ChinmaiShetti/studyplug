@@ -1,9 +1,16 @@
-# ChatPlug — Highlighter for ChatGPT
+# StudyPlug
+
+**Highlight, organise, annotate, and build a personal knowledge library from your
+ChatGPT conversations.**
 
 Select any text in a ChatGPT conversation, pick a colour, and it stays marked —
-across scrolls, reloads and ChatGPT's own re-renders. Add notes to passages,
-browse everything you marked from a side panel grouped by colour, jump straight
-back to any passage, and export the lot as Markdown.
+across scrolls, reloads and ChatGPT's own re-renders. Name the colours after
+your own categories, annotate passages, search everything you have ever marked
+across every chat, jump straight back to any passage, and export the lot as
+Markdown.
+
+A Manifest V3 extension with no build step and no network code: what is in
+`src/` is what runs, and nothing leaves your machine.
 
 ## Install (unpacked)
 
@@ -24,6 +31,7 @@ back with that highlight's controls.
 | Action | How |
 | --- | --- |
 | Highlight | Select text, pick a colour from the tray |
+| Highlight by right-click | Select text → **Highlight with StudyPlug** → a category |
 | Highlight without the mouse | Select text, press <kbd>Alt</kbd>+<kbd>1</kbd>…<kbd>5</kbd> |
 | Change colour | Click the highlight, pick another colour (or <kbd>Alt</kbd>+<kbd>1</kbd>…<kbd>5</kbd>) |
 | Add or edit a note | Click the highlight → pencil (<kbd>Ctrl</kbd>+<kbd>Enter</kbd> saves, <kbd>Esc</kbd> cancels) |
@@ -33,8 +41,11 @@ back with that highlight's controls.
 | Dismiss the tray | <kbd>Esc</kbd>, or click elsewhere |
 | Rename a category | Panel group header → pencil (<kbd>Enter</kbd> saves, <kbd>Esc</kbd> cancels) |
 | Open / close the side panel | <kbd>Alt</kbd>+<kbd>H</kbd>, the edge tab, or popup → **Open in chat** |
-| See the list, filter, export | Click the ChatPlug icon in the browser toolbar |
+| See the list, filter, export | Click the StudyPlug icon in the browser toolbar |
+| Select several | Panel header → the tick icon, or `x` on a focused entry |
+| Move around the panel | `j` / `k` to move, <kbd>Enter</kbd> to open, `g` to jump |
 | Search every chat | Panel header → the library icon, or popup → **Library** |
+| Export / back up | In the library: **Export .md**, **Back up**, **Restore** |
 
 Keyboard shortcuts are ignored while you are typing in the composer, so
 <kbd>Alt</kbd>+<kbd>1</kbd> never fires mid-message.
@@ -133,9 +144,31 @@ popup.
 It is read-only: editing stays where the passage is. The page updates itself
 when you highlight something in another tab, so it can be left open.
 
+## Getting things out
+
+Anything you have marked can leave the extension, in two different shapes.
+
+**Markdown**, for reading and pasting into a document. The popup exports the
+conversation you are in; the library exports whatever the current search and
+filters are showing, grouped by category or by chat. Passages become
+blockquotes under their category or chat heading, with notes in italics.
+
+**A backup**, for keeping. **Back up** in the library writes every conversation
+and your category names to one JSON file. **Restore** reads one back and asks
+before writing anything:
+
+- **Merge** keeps everything you have and adds only highlights whose id is not
+  already there. Restoring the same file twice changes nothing the second time.
+- **Replace** takes the backup's version of the conversations it names, and
+  leaves every conversation it does not mention alone.
+
+The index is rebuilt from the restored records rather than trusted from the
+file, and a backup written by a newer version of StudyPlug is refused outright
+rather than half-read.
+
 ## The toolbar popup
 
-The ChatPlug icon in the browser toolbar opens a second, flatter view of the
+The StudyPlug icon in the browser toolbar opens a second, flatter view of the
 same highlights — one list, newest first, rather than grouped by colour. It is
 the quicker way to skim what you marked most recently, and it is where the
 export lives:
@@ -239,6 +272,11 @@ cp:panelOpen              →  boolean, whether the side panel is showing
 
 Clearing every highlight in a conversation deletes its record outright.
 
+The `cp:` prefix predates the rename to StudyPlug. It is kept deliberately:
+those keys hold real highlights, and renaming them without a migration would
+orphan every mark already made. The `cp-` CSS classes and data attributes are
+kept aligned with it. Backups written under the old name are still readable.
+
 `unlimitedStorage` lifts the 10MB default that writes would otherwise start
 failing against — silently — once enough conversations are marked.
 
@@ -250,7 +288,7 @@ only have to be filtered back out again.
 ## Typing inside the extension's own UI
 
 ChatGPT focuses its composer as soon as it sees a keystroke that is not already
-going into a field. It cannot see into ChatPlug's shadow roots: from a listener
+going into a field. It cannot see into StudyPlug's shadow roots: from a listener
 on the page, an event raised inside one **retargets to the host**, which is a
 plain `<div>`. So the page concludes nobody is typing, pulls focus to "Ask
 anything" mid-word, and the rename box loses what you wrote.
@@ -279,6 +317,7 @@ src/shared/              loaded by content scripts AND extension pages, so none
   palette.js             the five colours + custom category names
   records.js             the storage layout and its readers
   search.js              query parsing, matching, match marking
+  export.js              Markdown, backup, and the restore planner
 src/content/
   core.js                namespace, palette, shared helpers
   anchor.js              selection → stored range, painting it back, reading order
@@ -290,8 +329,9 @@ src/content/
   content.css            how a mark looks on the page
 src/popup/               toolbar popup: flat list, filters, export
 src/library/             the cross-conversation library page
-src/background/          service worker: opens the library in a tab
-test/                    tests: anchoring, ordering, palette, undo, search
+src/background/          service worker: context menu + opening the library
+test/                    tests: anchoring, ordering, palette, undo, search,
+                         export, backup/restore
 ```
 
 `main.js` owns the state; the panel reads through a small API it is handed at
@@ -307,10 +347,10 @@ because a content script cannot open a tab itself.
 
 ```bash
 npm install
-npm test
+npm run check   # lint + tests
 ```
 
-Fifty-eight tests cover the parts most likely to break: painting across element
+Eighty-one tests cover the parts most likely to break: painting across element
 boundaries, leaving message text byte-identical, exact DOM restoration on
 removal, repainting after a simulated re-render, re-anchoring after a turn is
 regenerated, refusing to paint when the passage no longer exists, sorting into
@@ -318,7 +358,19 @@ reading order — including the case where only part of a long conversation is
 loaded — and not opening blank lines when a highlight runs across list items,
 while still painting the whitespace inside a code block, and searching — term
 splitting, quoted phrases, matching across a passage and its note, and
-rebuilding the text exactly when marking the matched runs.
+rebuilding the text exactly when marking the matched runs. Export and backup
+add Markdown shape, the refusal paths for a malformed or too-new backup file,
+and a merge that stays idempotent when the same backup is restored twice.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). There is no build step: what is in
+`src/` is what runs. `npm run check` runs the linter and the tests.
+
+The one thing worth reading before changing anything: load order *is* the
+dependency graph here, and it is declared in two places that have to agree —
+`content_scripts.js` in the manifest, and the `<script>` tags in the popup
+and library pages.
 
 ## Known limits
 
@@ -338,4 +390,11 @@ rebuilding the text exactly when marking the matched runs.
   conversation; close it with <kbd>Alt</kbd>+<kbd>H</kbd>.
 - **Firefox** needs `browser_specific_settings.gecko.id` added to the manifest;
   everything else is standard MV3.
+- **Opening the library repeatedly opens new tabs** rather than focusing the one
+  already open. Focusing an existing tab would need the `tabs` permission, and
+  it did not seem worth asking for that.
+
+## Licence
+
+MIT — see [LICENSE](LICENSE).
 

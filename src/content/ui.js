@@ -1,10 +1,10 @@
-/* ChatPlug — the floating toolbar.
+/* StudyPlug — the floating toolbar.
 
    Lives in a shadow root so ChatGPT's stylesheet cannot reach it and ours
    cannot leak out. Reads as a graphite instrument resting on the page: the
    inks are the only colour, everything else stays quiet. */
 (() => {
-  const CP = window.__chatplug__;
+  const CP = window.__studyplug__;
 
   const CSS_TEXT = `
     :host { all: initial; }

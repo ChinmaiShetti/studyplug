@@ -46,10 +46,9 @@ function freshDom(markup = TURN) {
   if (!window.CSS) window.CSS = global.CSS;
 
   for (const file of SCRIPTS) {
-    // eslint-disable-next-line no-eval
     window.eval(fs.readFileSync(file, 'utf8'));
   }
-  return { dom, window, CP: window.__chatplug__ };
+  return { dom, window, CP: window.__studyplug__ };
 }
 
 /* Build a highlight for a literal substring of the message's text. */

@@ -10,9 +10,8 @@ const SRC = path.join(__dirname, '..', 'src', 'shared', 'search.js');
 const load = () => {
   const sandbox = {};
   sandbox.globalThis = sandbox;
-  // eslint-disable-next-line no-new-func
   new Function('globalThis', fs.readFileSync(SRC, 'utf8'))(sandbox);
-  return sandbox.ChatPlugSearch;
+  return sandbox.StudyPlugSearch;
 };
 
 const S = load();
