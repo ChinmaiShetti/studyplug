@@ -18,6 +18,7 @@ const el = {
   list: document.getElementById('list'),
   foot: document.getElementById('foot'),
   openPanel: document.getElementById('openPanel'),
+  openLibrary: document.getElementById('openLibrary'),
   copyAll: document.getElementById('copyAll'),
   exportMd: document.getElementById('exportMd'),
   clear: document.getElementById('clear'),
@@ -233,6 +234,12 @@ const flash = (btn, word) => {
    the reader over to it and get out of the way. */
 el.openPanel.addEventListener('click', async () => {
   await send({ type: 'CP_PANEL', open: true });
+  window.close();
+});
+
+/* Everything you have marked, across every conversation. */
+el.openLibrary.addEventListener('click', () => {
+  chrome.tabs.create({ url: chrome.runtime.getURL('src/library/library.html') });
   window.close();
 });
 

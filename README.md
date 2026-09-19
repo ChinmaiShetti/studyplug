@@ -34,6 +34,7 @@ back with that highlight's controls.
 | Rename a category | Panel group header → pencil (<kbd>Enter</kbd> saves, <kbd>Esc</kbd> cancels) |
 | Open / close the side panel | <kbd>Alt</kbd>+<kbd>H</kbd>, the edge tab, or popup → **Open in chat** |
 | See the list, filter, export | Click the ChatPlug icon in the browser toolbar |
+| Search every chat | Panel header → the library icon, or popup → **Library** |
 
 Keyboard shortcuts are ignored while you are typing in the composer, so
 <kbd>Alt</kbd>+<kbd>1</kbd> never fires mid-message.
@@ -110,6 +111,27 @@ other open ChatGPT tabs through `chrome.storage.onChanged` without a reload.
 against the dark text sitting on them and for separation from each other (see
 [Colour](#colour)); letting them be changed would quietly break that. You rename
 a category, you don't recolour it.
+
+## The library
+
+The panel and the popup only ever show the conversation you are in. The library
+is every highlight you have ever made, across every chat, in one searchable
+page. Open it from the library icon in the panel header or **Library** in the
+popup.
+
+- **Search** runs over passages *and* notes. Several words are AND-ed and may be
+  split between the two, so `gate March` finds a passage about the gate whose
+  note mentions March. `"a quoted phrase"` is matched whole. Matches are
+  marked in the results so you can see why something is in the list.
+- **Filter** by category, and by who wrote it.
+- **Group by chat** (reading order within each) or **by category** (your
+  Architecture notes from every conversation together). Whichever one the
+  heading is not already saying, each card names the other — so grouped by
+  category you still see which chat a passage came from.
+- **Open in chat** opens the conversation and scrolls to that exact passage.
+
+It is read-only: editing stays where the passage is. The page updates itself
+when you highlight something in another tab, so it can be left open.
 
 ## The toolbar popup
 
@@ -204,7 +226,7 @@ viewport if neither side fits — see `place()` in `src/content/ui.js`.
 
 ## Storage and permissions
 
-The extension asks for one permission, `storage`, plus host access to
+The extension asks for `storage` and `unlimitedStorage`, plus host access to
 `chatgpt.com` and `chat.openai.com`. There is no network code in it: everything
 stays in `chrome.storage.local` on your machine, and nothing is sent anywhere.
 
@@ -217,69 +239,13 @@ cp:panelOpen              →  boolean, whether the side panel is showing
 
 Clearing every highlight in a conversation deletes its record outright.
 
-`cp:index` is kept current but **nothing reads it back yet** — both the panel
-and the popup only show the conversation you are looking at. It is there so a
-cross-conversation view can be added without having to load every record.
+`unlimitedStorage` lifts the 10MB default that writes would otherwise start
+failing against — silently — once enough conversations are marked.
 
-## Layout
-
-```
-manifest.json            MV3 manifest
-src/shared/
-  palette.js             the five colours + custom category names (loaded by
-                         content scripts AND extension pages)
-src/content/
-  core.js                namespace, palette, shared helpers
-  anchor.js              selection → stored range, painting it back, reading order
-  store.js               chrome.storage layer, conversation identity
-  undo.js                the undo stack (DOM work injected, so it is testable)
-  ui.js                  floating tray (shadow DOM)
-  panel.js               in-page side panel (shadow DOM)
-  main.js                events, state, panel API, popup channel
-  content.css            how a mark looks on the page
-src/popup/               toolbar popup: flat list, filters, export
-test/                    jsdom tests: anchoring, ordering, palette, undo
-```
-
-`main.js` owns the state; the panel reads through a small API it is handed at
-startup (`items`, `jump`, `peek`, `copy`, `setColor`, `setNote`, `remove`)
-rather than reaching into it. Every mutation goes through `persist()`, which
-saves and re-renders the panel, so the painted DOM, storage and both lists
-cannot drift apart.
-
-## Tests
-
-```bash
-npm install
-npm test
-```
-
-Forty-four tests cover the parts most likely to break: painting across element
-boundaries, leaving message text byte-identical, exact DOM restoration on
-removal, repainting after a simulated re-render, re-anchoring after a turn is
-regenerated, refusing to paint when the passage no longer exists, sorting into
-reading order — including the case where only part of a long conversation is
-loaded — and not opening blank lines when a highlight runs across list items,
-while still painting the whitespace inside a code block.
-
-## Known limits
-
-- **Only `/c/<id>` conversations.** A brand-new chat has no id until you send the
-  first message; highlights become available once ChatGPT assigns one.
-- **Highlights do not follow a conversation across devices** — storage is local.
-  Switch `chrome.storage.local` to `chrome.storage.sync` in `store.js` to change
-  that, at the cost of a ~100KB quota.
-- **A regenerated answer loses its highlights** if the wording changed enough
-  that the stored text no longer appears.
-- **Highlights in turns that have not lazy-loaded** sort as a block at the end
-  of their colour group, and **Go to text** reports that the turn is not on
-  screen. Scroll up to load the older turns and both resolve. ChatGPT exposes no
-  stable turn number, so there is no way to place an unloaded turn correctly
-  among loaded ones — see `inReadingOrder` in `src/content/anchor.js`.
-- **The panel overlays the page.** On a narrow window it will sit over the
-  conversation; close it with <kbd>Alt</kbd>+<kbd>H</kbd>.
-- **Firefox** needs `browser_specific_settings.gecko.id` added to the manifest;
-  everything else is standard MV3.
+`cp:index` names every conversation that has highlights. The library reads it
+to know which records to load, rather than `storage.get(null)` — everything
+else in there (`cp:labels`, `cp:panelOpen`) is not a conversation and would
+only have to be filtered back out again.
 
 ## Typing inside the extension's own UI
 
@@ -304,3 +270,72 @@ Two details it depends on:
 - Focus leaving the rename box only saves when it moved somewhere inside the
   panel. If the page takes it, the field stays open holding what you typed,
   rather than storing half a word or wiping the name with an empty one.
+## Layout
+
+```
+manifest.json            MV3 manifest
+src/shared/              loaded by content scripts AND extension pages, so none
+                         of it may assume a ChatGPT page
+  palette.js             the five colours + custom category names
+  records.js             the storage layout and its readers
+  search.js              query parsing, matching, match marking
+src/content/
+  core.js                namespace, palette, shared helpers
+  anchor.js              selection → stored range, painting it back, reading order
+  store.js               conversation identity (the rest is shared/records.js)
+  undo.js                the undo stack (DOM work injected, so it is testable)
+  ui.js                  floating tray (shadow DOM)
+  panel.js               in-page side panel (shadow DOM)
+  main.js                events, state, panel API, popup channel
+  content.css            how a mark looks on the page
+src/popup/               toolbar popup: flat list, filters, export
+src/library/             the cross-conversation library page
+src/background/          service worker: opens the library in a tab
+test/                    tests: anchoring, ordering, palette, undo, search
+```
+
+`main.js` owns the state; the panel reads through a small API it is handed at
+startup (`items`, `jump`, `peek`, `copy`, `setColor`, `setNote`, `remove`)
+rather than reaching into it. Every mutation goes through `persist()`, which
+saves and re-renders the panel, so the painted DOM, storage and every list stay
+in step.
+
+The library is read-only over the same records, and a service worker exists only
+because a content script cannot open a tab itself.
+
+## Tests
+
+```bash
+npm install
+npm test
+```
+
+Fifty-eight tests cover the parts most likely to break: painting across element
+boundaries, leaving message text byte-identical, exact DOM restoration on
+removal, repainting after a simulated re-render, re-anchoring after a turn is
+regenerated, refusing to paint when the passage no longer exists, sorting into
+reading order — including the case where only part of a long conversation is
+loaded — and not opening blank lines when a highlight runs across list items,
+while still painting the whitespace inside a code block, and searching — term
+splitting, quoted phrases, matching across a passage and its note, and
+rebuilding the text exactly when marking the matched runs.
+
+## Known limits
+
+- **Only `/c/<id>` conversations.** A brand-new chat has no id until you send the
+  first message; highlights become available once ChatGPT assigns one.
+- **Highlights do not follow a conversation across devices** — storage is local.
+  Switch `chrome.storage.local` to `chrome.storage.sync` in `store.js` to change
+  that, at the cost of a ~100KB quota.
+- **A regenerated answer loses its highlights** if the wording changed enough
+  that the stored text no longer appears.
+- **Highlights in turns that have not lazy-loaded** sort as a block at the end
+  of their colour group, and **Go to text** reports that the turn is not on
+  screen. Scroll up to load the older turns and both resolve. ChatGPT exposes no
+  stable turn number, so there is no way to place an unloaded turn correctly
+  among loaded ones — see `inReadingOrder` in `src/content/anchor.js`.
+- **The panel overlays the page.** On a narrow window it will sit over the
+  conversation; close it with <kbd>Alt</kbd>+<kbd>H</kbd>.
+- **Firefox** needs `browser_specific_settings.gecko.id` added to the manifest;
+  everything else is standard MV3.
+

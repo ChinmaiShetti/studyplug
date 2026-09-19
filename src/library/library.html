@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ChatPlug Library</title>
+  <link rel="icon" href="../../icons/icon32.png">
+  <link rel="stylesheet" href="library.css">
+</head>
+<body>
+  <header class="head">
+    <div class="bar">
+      <div class="brand">
+        <span class="eyebrow">ChatPlug</span>
+        <h1>Library</h1>
+      </div>
+
+      <div class="search">
+        <svg class="mag" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+          <circle cx="7.2" cy="7.2" r="4.4"/><path d="M10.5 10.5L14 14"/>
+        </svg>
+        <input id="q" type="search" placeholder="Search every highlight…"
+               autocomplete="off" spellcheck="false" aria-label="Search highlights">
+        <button type="button" id="clearQ" class="clearq" title="Clear search" aria-label="Clear search" hidden>
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="filters">
+      <div class="swatches" id="swatches" role="group" aria-label="Filter by category"></div>
+      <div class="spacer"></div>
+      <div class="seg" role="group" aria-label="Who wrote it">
+        <button type="button" class="segbtn" data-role="" aria-pressed="true">Everyone</button>
+        <button type="button" class="segbtn" data-role="user" aria-pressed="false">You</button>
+        <button type="button" class="segbtn" data-role="assistant" aria-pressed="false">ChatGPT</button>
+      </div>
+      <div class="seg" role="group" aria-label="Group results by">
+        <button type="button" class="segbtn" data-group="conversation" aria-pressed="true">By chat</button>
+        <button type="button" class="segbtn" data-group="category" aria-pressed="false">By category</button>
+      </div>
+    </div>
+
+    <p class="tally" id="tally" aria-live="polite"></p>
+  </header>
+
+  <main id="results" class="results"></main>
+
+  <script src="../shared/palette.js"></script>
+  <script src="../shared/records.js"></script>
+  <script src="../shared/search.js"></script>
+  <script src="library.js"></script>
+</body>
+</html>

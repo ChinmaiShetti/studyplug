@@ -3,7 +3,10 @@
   "name": "ChatPlug — Highlighter for ChatGPT",
   "version": "1.0.0",
   "description": "Highlight, colour-code and annotate any text in your ChatGPT conversations. Highlights are saved and restored automatically.",
-  "permissions": ["storage"],
+  "permissions": [
+    "storage",
+    "unlimitedStorage"
+  ],
   "host_permissions": [
     "https://chatgpt.com/*",
     "https://chat.openai.com/*"
@@ -32,6 +35,7 @@
       ],
       "js": [
         "src/shared/palette.js",
+        "src/shared/records.js",
         "src/content/core.js",
         "src/content/anchor.js",
         "src/content/store.js",
@@ -40,9 +44,14 @@
         "src/content/panel.js",
         "src/content/main.js"
       ],
-      "css": ["src/content/content.css"],
+      "css": [
+        "src/content/content.css"
+      ],
       "run_at": "document_idle",
       "all_frames": false
     }
-  ]
+  ],
+  "background": {
+    "service_worker": "src/background/service-worker.js"
+  }
 }

@@ -1,0 +1,404 @@
+/* ChatPlug — the library.
+
+   Same three type roles as the panel, so this reads as the same product at a
+   larger size: serif for the passages you saved, mono for what the tool says
+   about them, sans for what you click. */
+
+:root {
+  --paper: #fcfcfa;
+  --paper-sunk: #f4f3ef;
+  --paper-raised: #ffffff;
+  --ink: #1b1a16;
+  --ink-soft: #565248;
+  --ink-faint: #8d887c;
+  --edge: rgba(27, 26, 22, 0.11);
+  --edge-soft: rgba(27, 26, 22, 0.06);
+  --focus: #3b6fd4;
+  --hit: rgba(245, 197, 24, 0.38);
+
+  --sans: ui-sans-serif, "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  --mono: ui-monospace, "Cascadia Code", Consolas, "SF Mono", monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #171715;
+    --paper-sunk: #1f1e1b;
+    --paper-raised: #1c1b19;
+    --ink: #f1efe8;
+    --ink-soft: #a8a396;
+    --ink-faint: #736e63;
+    --edge: rgba(255, 255, 255, 0.12);
+    --edge-soft: rgba(255, 255, 255, 0.06);
+    --focus: #8fb7ff;
+    --hit: rgba(245, 197, 24, 0.3);
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
+
+/* ---------- header ---------- */
+
+.head {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--paper);
+  border-bottom: 1px solid var(--edge);
+  padding: 18px 28px 0;
+}
+
+.bar {
+  display: flex;
+  align-items: flex-end;
+  gap: 26px;
+  max-width: 1080px;
+  margin: 0 auto;
+}
+
+.brand { flex: 0 0 auto; }
+
+.eyebrow {
+  display: block;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.brand h1 {
+  margin: 3px 0 0;
+  font-family: var(--serif);
+  font-size: 26px;
+  font-weight: 400;
+  line-height: 1;
+}
+
+.search {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  max-width: 560px;
+  margin-left: auto;
+}
+
+.search .mag {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  width: 15px;
+  height: 15px;
+  transform: translateY(-50%);
+  color: var(--ink-faint);
+  pointer-events: none;
+}
+
+#q {
+  width: 100%;
+  height: 38px;
+  padding: 0 34px 0 34px;
+  border: 1px solid var(--edge);
+  border-radius: 9px;
+  background: var(--paper-sunk);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 14px;
+}
+
+#q::-webkit-search-cancel-button { display: none; }
+#q:focus { outline: none; border-color: var(--focus); background: var(--paper-raised); }
+#q::placeholder { color: var(--ink-faint); }
+
+.clearq {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  width: 22px;
+  height: 22px;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-faint);
+  cursor: pointer;
+}
+
+.clearq:hover { background: var(--edge); color: var(--ink); }
+.clearq[hidden] { display: none; }
+.clearq svg { width: 12px; height: 12px; }
+
+/* ---------- filters ---------- */
+
+.filters {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 14px 0 12px;
+}
+
+.filters .spacer { flex: 1; }
+
+.swatches { display: flex; align-items: center; gap: 4px; }
+
+.swatch {
+  position: relative;
+  height: 26px;
+  padding: 0 9px 0 7px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ink-soft);
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.swatch:hover { background: var(--paper-sunk); }
+.swatch i {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--sw);
+  box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.15);
+}
+.swatch[aria-pressed="true"] { border-color: var(--edge); background: var(--paper-sunk); color: var(--ink); }
+.swatch[data-empty] { opacity: 0.32; pointer-events: none; }
+.swatch .n { font-variant-numeric: tabular-nums; opacity: 0.75; }
+
+.seg {
+  display: inline-flex;
+  border: 1px solid var(--edge);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.segbtn {
+  height: 26px;
+  padding: 0 11px;
+  border: 0;
+  border-right: 1px solid var(--edge);
+  background: transparent;
+  color: var(--ink-soft);
+  cursor: pointer;
+  font-family: var(--sans);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.seg .segbtn:last-child { border-right: 0; }
+.segbtn:hover { background: var(--paper-sunk); color: var(--ink); }
+.segbtn[aria-pressed="true"] { background: var(--paper-sunk); color: var(--ink); font-weight: 600; }
+
+.tally {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 0 0 12px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+/* ---------- results ---------- */
+
+.results {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 22px 28px 80px;
+}
+
+.group { margin-bottom: 30px; }
+
+.ghead {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding-bottom: 8px;
+  margin-bottom: 2px;
+  border-bottom: 1px solid var(--edge);
+}
+
+.ghead .chip {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  background: var(--gc);
+  align-self: center;
+  flex: 0 0 auto;
+}
+
+.ghead h2 {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: 17px;
+  font-weight: 400;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ghead .meta {
+  margin-left: auto;
+  flex: 0 0 auto;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.ghead a.open {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+}
+
+.ghead a.open:hover { color: var(--ink); border-bottom-color: var(--edge); }
+
+.card {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 14px;
+  align-items: start;
+  padding: 13px 14px 13px 18px;
+  border-bottom: 1px solid var(--edge-soft);
+  background: linear-gradient(to right, var(--gc) 0 3px, transparent 3px);
+}
+
+.card:hover { background-color: var(--paper-sunk); }
+
+.card .who {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin-bottom: 4px;
+}
+
+.card .who .cat { color: var(--gc); filter: brightness(0.82) saturate(1.3); }
+@media (prefers-color-scheme: dark) { .card .who .cat { filter: none; } }
+
+/* Grouped by category, the card names its chat instead. It can be long, so it
+   gets to truncate rather than push the date off the line. */
+.card .who .from {
+  display: inline-block;
+  max-width: 34ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+  color: var(--ink-soft);
+}
+
+.card blockquote {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--ink);
+}
+
+.card .note {
+  margin: 7px 0 0;
+  padding-left: 10px;
+  border-left: 2px solid var(--gc);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ink-soft);
+  white-space: pre-wrap;
+}
+
+.card mark {
+  background: var(--hit);
+  color: inherit;
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+.go {
+  align-self: center;
+  height: 28px;
+  padding: 0 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--edge);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  font-family: var(--sans);
+  font-size: 12px;
+  white-space: nowrap;
+  /* Getting back to the passage is the point of this page, so the control is
+     always there -- quiet until you are on the card, never hidden. */
+  opacity: 0.5;
+  transition: opacity 0.1s ease, border-color 0.1s ease;
+}
+
+.card:hover .go,
+.card:focus-within .go { opacity: 1; }
+.go:hover { background: var(--paper-raised); border-color: var(--ink-faint); }
+.go svg { width: 12px; height: 12px; }
+
+/* ---------- empty ---------- */
+
+.empty {
+  padding: 70px 24px;
+  text-align: center;
+  color: var(--ink-soft);
+}
+
+.empty strong {
+  display: block;
+  margin-bottom: 8px;
+  font-family: var(--serif);
+  font-size: 19px;
+  font-weight: 400;
+  color: var(--ink);
+}
+
+.empty p { margin: 0 auto; max-width: 42ch; font-size: 13.5px; line-height: 1.6; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; }
+}
+
+@media (max-width: 720px) {
+  .head { padding: 14px 16px 0; }
+  .results { padding: 18px 16px 60px; }
+  .bar { flex-direction: column; align-items: stretch; gap: 12px; }
+  .search { max-width: none; margin-left: 0; }
+  .card { grid-template-columns: 1fr; }
+  .go { opacity: 1; justify-self: start; }
+}

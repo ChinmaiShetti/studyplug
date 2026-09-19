@@ -404,6 +404,7 @@
 
   const ICONS = {
     close: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>',
+    library: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.6 3.4h3.1v9.2H2.6zM6.9 3.4H10v9.2H6.9zM11.4 4l2.1 8.4"/></svg>',
     undo:  '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3.2 7.4h6.4a3.2 3.2 0 0 1 0 6.4H6.5M3.2 7.4l3-3M3.2 7.4l3 3"/></svg>',
     caret: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6.5l4 4 4-4"/></svg>',
     jump:  '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.5v11M4 9.5l4 4 4-4"/></svg>',
@@ -703,10 +704,13 @@
     countEl = document.createElement('span');
     const spacer = document.createElement('span');
     spacer.className = 'spacer';
+    const libraryBtn = mkIcon('iconbtn', 'Everything you have marked, across all chats',
+      ICONS.library, () => api?.openLibrary?.());
+
     undoBtn = mkIcon('iconbtn', 'Undo (Ctrl+Z)', ICONS.undo, () => api?.undo?.());
     undoBtn.hidden = true;
 
-    eyebrow.append(label, countEl, spacer, undoBtn,
+    eyebrow.append(label, countEl, spacer, libraryBtn, undoBtn,
       mkIcon('iconbtn', 'Close (Alt+H)', ICONS.close, () => panel.setOpen(false)));
 
     titleEl = document.createElement('h2');

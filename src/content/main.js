@@ -13,12 +13,41 @@
 
   /* ---------- state ---------- */
 
+  /* The library opens a conversation as .../c/<id>#cp=<highlightId>. The turn
+     it points at may not be painted — or even loaded — at boot, so keep trying
+     for a short while as messages arrive, then give up quietly. */
+  let pendingJump = null;
+  let pendingUntil = 0;
+
+  const takeHashTarget = () => {
+    const m = /[#&]cp=([^&]+)/.exec(location.hash || '');
+    if (!m) return;
+    pendingJump = decodeURIComponent(m[1]);
+    pendingUntil = Date.now() + 15000;
+    /* Clear it so a reload does not jump again, without adding a history entry. */
+    history.replaceState(null, '', location.pathname + location.search);
+  };
+
+  const tryPendingJump = () => {
+    if (!pendingJump) return;
+    if (Date.now() > pendingUntil) {
+      const missed = pendingJump;
+      pendingJump = null;
+      if (!byId(missed)) CP.ui.toast('That highlight is no longer in this chat');
+      else CP.ui.toast('That turn has not loaded — scroll up to find it');
+      return;
+    }
+    if (jumpTo(pendingJump)) pendingJump = null;
+  };
+
   const boot = async () => {
     await CP.PALETTE.refresh(); // custom category names, before anything renders
+    takeHashTarget();
     convId = CP.conversationId();
     record = convId ? await CP.loadConversation(convId) : null;
     restoreAll();
     CP.panel.refresh();
+    tryPendingJump();
   };
 
   const restoreAll = () => {
@@ -379,6 +408,7 @@
     CP.ui.syncTheme();
     CP.panel.syncTheme();
     restoreAll();
+    tryPendingJump(); // the turn the library pointed at may have just arrived
   }, 260);
 
   /* Our own panel and tray mutate the DOM too. Without this guard every list
@@ -466,7 +496,8 @@
     setNote: (id, note) => setNote(id, note),
     remove: removeOne,
     undo,
-    canUndo: () => undoer.canUndo()
+    canUndo: () => undoer.canUndo(),
+    openLibrary: () => chrome.runtime.sendMessage({ type: 'CP_OPEN_LIBRARY' })
   });
   CP.panel.restoreState();
 
