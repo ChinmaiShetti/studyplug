@@ -4,7 +4,8 @@
 
 # StudyPlug
 
-**Highlight, organise and annotate ChatGPT — then keep what actually mattered.**
+**A highlighter for ChatGPT.** Mark passages, file them under your own
+categories, and find them again across every conversation you have ever had.
 
 ![tests](https://img.shields.io/badge/tests-83%20passing-f5c518?style=flat-square&labelColor=23211a)
 ![manifest](https://img.shields.io/badge/manifest-V3-4fc97a?style=flat-square&labelColor=23211a)
@@ -12,48 +13,56 @@
 ![contrast](https://img.shields.io/badge/contrast-WCAG%20AA-f27298?style=flat-square&labelColor=23211a)
 ![licence](https://img.shields.io/badge/licence-MIT-9b7bf0?style=flat-square&labelColor=23211a)
 
-<sub>Those five badge colours are the five highlighter inks. They are not decoration —<br>
-they are the palette, and every one of them is contrast-checked against the text that sits on it.</sub>
-
-<br>
-
 <img src="docs/images/library.png" width="880" alt="The StudyPlug library: every highlight from every conversation, searchable, grouped by chat">
 
 </div>
 
----
+## What it does
 
-A long ChatGPT thread is a conversation you had once and will never find again.
-You scroll back three days later looking for *the bit about the evaluation
-gate*, and it is somewhere in nine hundred lines you now have to re-read.
+| | |
+| --- | --- |
+| **Highlight** | Five colours, on any passage in any message. Select and pick, <kbd>Alt</kbd>+<kbd>1</kbd>…<kbd>5</kbd>, or right-click. |
+| **Survives** | Reloads, React re-renders, switching conversations, and turns that get edited or regenerated. |
+| **Categories** | Rename the colours to what you mean. "Blue" becomes "Methodology", everywhere it appears. |
+| **Notes** | Attach your own context to any passage. |
+| **Side panel** | <kbd>Alt</kbd>+<kbd>H</kbd>. This chat's marks, grouped by category, in reading order, with jump-to-passage. |
+| **Library** | Every chat at once. Full-text search over passages *and* notes, filters, deep links back to the exact sentence. |
+| **Export** | Markdown grouped by category or chat. JSON backup and restore that is safe to run twice. |
+| **Undo** | On everything destructive, including bulk actions. |
 
-StudyPlug is a highlighter pen for that problem. Mark the passage. Name the
-colour after what it means to you. Find it again next month from a search box,
-and jump straight back to the sentence in the original chat.
+Storage is `chrome.storage.local` on your machine. No account, no server, and no
+network code anywhere in the extension — three permissions plus host access to
+ChatGPT is the whole list.
 
-Everything stays on your machine. There is no account, no server, no telemetry
-and no network code anywhere in the extension.
+## Install
 
-<br>
+No build step. What is in `src/` is what runs.
 
-## Sixty seconds
+```bash
+git clone https://github.com/ChinmaiShetti/studyplug
+```
 
-Select text in any ChatGPT message. A tray appears under your selection with
-five inks in it. Pick one.
+1. Open `chrome://extensions` (or `edge://extensions`)
+2. Turn on **Developer mode**
+3. **Load unpacked** → choose the folder
+4. Open or reload a tab on [chatgpt.com](https://chatgpt.com)
+
+Reload the ChatGPT tab after changing anything in `src/content/` — content
+scripts only attach on page load.
+
+## Highlighting
+
+Select text in any ChatGPT message. A tray opens under the selection — below it,
+because ChatGPT puts its own "Ask ChatGPT" bubble above one.
 
 <div align="center">
 <img src="docs/images/tray.png" width="700" alt="The floating tray under a selection, with five ink colours and actions">
 </div>
 
-That is the whole interaction. The mark is saved immediately, survives reloads,
-and is waiting for you the next time you open that conversation.
+Click an existing highlight to get the same tray back with that highlight's
+controls: recolour, note, copy, remove.
 
-<kbd>Alt</kbd>+<kbd>1</kbd>…<kbd>5</kbd> does the same thing without the mouse.
-So does right-click → **Highlight with StudyPlug**.
-
-<br>
-
-## Three surfaces, one set of marks
+## Where your marks live
 
 ### 1 · In the conversation
 
@@ -191,7 +200,7 @@ and now has a test standing over its grave.
 
 ### 1 · The list that grew blank lines
 
-> **Symptom** — Highlighting across bullet points opened a blank line between every item.
+> **Symptom** — highlighting across bullet points opened a blank line between every item.
 
 The cause: dragging a selection across a list also covers the newline between
 `</li>` and `<li>`, which normally renders as nothing. Wrapping *that* in a
@@ -204,7 +213,7 @@ highlight across a code block full of holes.
 
 ### 2 · ChatGPT stealing the keyboard mid-word
 
-> **Symptom** — Typing a category name went into ChatGPT’s “Ask anything” box instead.
+> **Symptom** — typing a category name went into ChatGPT’s “Ask anything” box instead.
 
 ChatGPT focuses its composer whenever it sees a keystroke that is not already in a
 field — and it cannot see into a shadow root. From its listener, an event raised
@@ -220,7 +229,7 @@ so swallowing those would mean the rename box never sees its own Enter.
 
 ### 3 · Dark mode drained the colour out
 
-> **Symptom** — Five distinct inks all converged on the same muddy grey-brown.
+> **Symptom** — five distinct inks all converged on the same muddy grey-brown.
 
 Not a palette problem — a ceiling. The composited band has to stay
 dark enough for the white text on it to stay readable, which caps how much
@@ -234,7 +243,7 @@ light and dark mode.
 
 ### 4 · Its own tooltip in the way
 
-> **Symptom** — The tray opened directly underneath ChatGPT’s own “Ask ChatGPT” bubble.
+> **Symptom** — the tray opened directly underneath ChatGPT’s own “Ask ChatGPT” bubble.
 
 It opens below the selection now, flips up only when there is no room below,
 and pins inside the viewport if neither side fits. The smallest fix of the five,
@@ -242,31 +251,13 @@ and the only one caused by somebody else’s UI rather than our own.
 
 ### 5 · Ordering that scrambled itself
 
-> **Symptom** — In long chats the panel listed passages in an order that matched nothing.
+> **Symptom** — in long chats the panel listed passages in an order that matched nothing.
 
 Lists mixed two incompatible coordinate systems: a live DOM index and a stored
 turn index. In a long chat ChatGPT only keeps part of the conversation loaded,
 so the loaded turns are indexed `0..n` while the stored turns they came from
 might be `20..30`. Ranking them on one scale scrambles the list. Loaded and
 unloaded turns are now ranked separately and never compared.
-
-<br>
-
-## Install
-
-No build step. What is in `src/` is what runs.
-
-```bash
-git clone https://github.com/ChinmaiShetti/studyplug
-```
-
-1. Open `chrome://extensions` (or `edge://extensions`)
-2. Turn on **Developer mode**
-3. **Load unpacked** → choose the folder
-4. Open or reload a tab on [chatgpt.com](https://chatgpt.com)
-
-Reload the ChatGPT tab after changing anything in `src/content/` — content
-scripts only attach on page load.
 
 <br>
 
@@ -412,3 +403,14 @@ success even if the fix did nothing, until a control case was added to it.
 <div align="center">
 <sub>MIT — see <a href="LICENSE">LICENSE</a>. Built for anyone who has ever scrolled back through a chat looking for one sentence.</sub>
 </div>
+<kbd>Alt</kbd>+<kbd>H</kbd>.
+- **Firefox** needs `browser_specific_settings.gecko.id` added to the manifest;
+  everything else is standard MV3.
+- **Opening the library repeatedly opens new tabs** rather than focusing the one
+  already open. Focusing an existing tab would need the `tabs` permission, and
+  it did not seem worth asking for that.
+
+## Licence
+
+MIT — see [LICENSE](LICENSE).
+
