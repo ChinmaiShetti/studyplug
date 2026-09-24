@@ -137,22 +137,31 @@
           continue;
         }
 
-        const order = CP.messageOrder();
-        const first = order.get(messages[0].getAttribute('data-message-id'));
-        const last = order.get(messages[messages.length - 1].getAttribute('data-message-id'));
+        /* h.turn is the DOM index from the moment a highlight was created.
+           It is NOT comparable with the current DOM index after lazy loading:
+           ChatGPT can mount only a slice of the conversation. Instead, use
+           other highlights whose turns are currently mounted as stable
+           landmarks. Their stored turn values were captured in the same
+           coordinate system as the target. */
+        const loadedLandmarks = (record?.items || [])
+          .filter((item) => Number.isFinite(item.turn) && CP.messageEl(item.msgId))
+          .sort((a, b) => a.turn - b.turn);
 
-        /* Stored turn numbers are the stable fallback for direction. If the
-           target is older than what is mounted, go up; if it is newer, go
-           down. If turn is unavailable, bias upward because ChatGPT normally
-           starts with the newest portion of a long chat. */
+        /* Older content is normally above the initially mounted slice. When
+           we have no landmark at all, bias upward; repeated passes will keep
+           asking ChatGPT for older content until the target appears. */
         let direction = -1;
-        if (Number.isFinite(h.turn) && Number.isFinite(first) && Number.isFinite(last)) {
+        if (Number.isFinite(h.turn) && loadedLandmarks.length) {
+          const first = loadedLandmarks[0].turn;
+          const last = loadedLandmarks[loadedLandmarks.length - 1].turn;
+
           if (h.turn > last) direction = 1;
           else if (h.turn < first) direction = -1;
           else {
-            /* The message may be in the logical range but still not mounted
-               due to virtualization. Move toward the nearest edge. */
-            direction = Math.abs(h.turn - first) < Math.abs(last - h.turn) ? -1 : 1;
+            const nearest = loadedLandmarks.reduce((best, item) =>
+              Math.abs(item.turn - h.turn) < Math.abs(best.turn - h.turn) ? item : best
+            );
+            direction = nearest.turn < h.turn ? 1 : -1;
           }
         }
 
