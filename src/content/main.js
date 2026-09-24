@@ -28,16 +28,19 @@
     history.replaceState(null, '', location.pathname + location.search);
   };
 
-  const tryPendingJump = () => {
+  const tryPendingJump = async () => {
     if (!pendingJump) return;
     if (Date.now() > pendingUntil) {
       const missed = pendingJump;
       pendingJump = null;
       if (!byId(missed)) CP.ui.toast('That highlight is no longer in this chat');
-      else CP.ui.toast('That turn has not loaded — scroll up to find it');
+      else CP.ui.toast('That turn could not be loaded');
       return;
     }
-    if (jumpTo(pendingJump)) pendingJump = null;
+
+    const id = pendingJump;
+    const found = await seekToHighlight(id);
+    if (found) pendingJump = null;
   };
 
   const boot = async () => {
@@ -47,7 +50,7 @@
     record = convId ? await CP.loadConversation(convId) : null;
     restoreAll();
     CP.panel.refresh();
-    tryPendingJump();
+    void tryPendingJump();
   };
 
   const restoreAll = () => {
@@ -69,7 +72,7 @@
 
   /* Scroll a passage into view and flash it, so the eye lands on the right
      words rather than somewhere in the middle of the turn. */
-  const jumpTo = (id) => {
+  const paintAndJump = (id) => {
     const marks = CP.marksFor(id);
     if (!marks.length) return false;
     marks[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -78,6 +81,119 @@
       void m.offsetWidth; // restart the animation if it is already running
       m.classList.add('cp-flash');
       setTimeout(() => m.classList.remove('cp-flash'), 1200);
+    });
+    return true;
+  };
+
+  /* ChatGPT lazily mounts only part of a long conversation. A stored
+     highlight can therefore point at a perfectly valid message that is not
+     currently in the DOM. When that happens, progressively seek through the
+     conversation so ChatGPT gets a chance to mount the missing turn.
+
+     We deliberately use the conversation's scroll container rather than
+     window.scrollTo(): on current ChatGPT layouts the actual scroll owner can
+     be an inner element, and scrolling the window would not cause the lazy
+     loader to fetch older/newer turns. */
+  const scrollOwner = () => {
+    const messages = document.querySelectorAll(CP.MESSAGE_SELECTOR);
+    const seed = messages[0];
+    if (seed) {
+      let el = seed.parentElement;
+      while (el && el !== document.body) {
+        const style = getComputedStyle(el);
+        const canScroll = el.scrollHeight > el.clientHeight + 24;
+        const overflow = style.overflowY === 'auto' || style.overflowY === 'scroll';
+        if (canScroll && overflow) return el;
+        el = el.parentElement;
+      }
+    }
+    return document.scrollingElement || document.documentElement;
+  };
+
+  const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  const seekToHighlight = async (id) => {
+    if (paintAndJump(id)) return true;
+
+    const h = byId(id);
+    if (!h) return false;
+
+    /* Avoid two panel clicks / pending-jump retries fighting over scrollTop. */
+    if (seekToHighlight.running) return false;
+    seekToHighlight.running = true;
+
+    try {
+      const deadline = Math.min(
+        pendingUntil || (Date.now() + 12000),
+        Date.now() + 12000
+      );
+
+      while (Date.now() < deadline) {
+        if (paintAndJump(id)) return true;
+
+        const messages = [...document.querySelectorAll(CP.MESSAGE_SELECTOR)];
+        if (!messages.length) {
+          await wait(250);
+          continue;
+        }
+
+        const order = CP.messageOrder();
+        const first = order.get(messages[0].getAttribute('data-message-id'));
+        const last = order.get(messages[messages.length - 1].getAttribute('data-message-id'));
+
+        /* Stored turn numbers are the stable fallback for direction. If the
+           target is older than what is mounted, go up; if it is newer, go
+           down. If turn is unavailable, bias upward because ChatGPT normally
+           starts with the newest portion of a long chat. */
+        let direction = -1;
+        if (Number.isFinite(h.turn) && Number.isFinite(first) && Number.isFinite(last)) {
+          if (h.turn > last) direction = 1;
+          else if (h.turn < first) direction = -1;
+          else {
+            /* The message may be in the logical range but still not mounted
+               due to virtualization. Move toward the nearest edge. */
+            direction = Math.abs(h.turn - first) < Math.abs(last - h.turn) ? -1 : 1;
+          }
+        }
+
+        const owner = scrollOwner();
+        const amount = Math.max(320, Math.floor((owner.clientHeight || innerHeight) * 0.85));
+
+        if (direction < 0) {
+          owner.scrollTop = Math.max(0, owner.scrollTop - amount);
+        } else {
+          owner.scrollTop = Math.min(
+            owner.scrollHeight,
+            owner.scrollTop + amount
+          );
+        }
+
+        /* Give React + the lazy loader time to mount the next batch. */
+        await wait(220);
+
+        /* Newly mounted turns may now contain the target; restoreAll also
+           re-anchors any existing highlights whose DOM nodes were rebuilt. */
+        restoreAll();
+        if (paintAndJump(id)) return true;
+
+        /* If the scroll owner did not move at all, nudge the page-level
+           scroller too. This covers layouts where the visible conversation
+           is effectively window-scrolled. */
+        if (owner === document.scrollingElement || owner === document.documentElement) {
+          window.scrollBy(0, direction * amount);
+        }
+      }
+    } finally {
+      seekToHighlight.running = false;
+    }
+
+    return false;
+  };
+
+  const jumpTo = (id) => {
+    if (paintAndJump(id)) return true;
+    seekToHighlight(id).then((found) => {
+      if (!found && pendingJump !== id) CP.ui.toast('That turn is not loaded');
     });
     return true;
   };
@@ -453,7 +569,7 @@
     CP.ui.syncTheme();
     CP.panel.syncTheme();
     restoreAll();
-    tryPendingJump(); // the turn the library pointed at may have just arrived
+    void tryPendingJump(); // the turn the library pointed at may have just arrived
   }, 260);
 
   /* Our own panel and tray mutate the DOM too. Without this guard every list
