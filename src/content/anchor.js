@@ -116,6 +116,7 @@
   };
 
   CP.messageEl = (msgId) =>
+    document.querySelector(`${CP.MESSAGE_SELECTOR}[data-message-id="${CSS.escape(msgId)}"]`) ||
     document.querySelector(`[data-message-id="${CSS.escape(msgId)}"]`);
 
   /* Where each loaded turn sits in the conversation. Lists read in reading
