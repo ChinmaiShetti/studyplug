@@ -191,9 +191,15 @@
       while (Date.now() < deadline) {
         if (paintAndJump(id)) return true;
         const owner = scrollOwner();
-        const reverse = owner !== document.scrollingElement && owner !== document.documentElement && getComputedStyle(owner).flexDirection === 'column-reverse';
+        const loaded = (record?.items || [])
+          .filter((item) => CP.messageEl(item.msgId) && Number.isFinite(item.turn))
+          .sort((a, b) => a.turn - b.turn);
+        let direction = -1;
+        if (loaded.length) {
+          if (Number.isFinite(h.turn) && h.turn > loaded[loaded.length - 1].turn) direction = 1;
+          else if (Number.isFinite(h.turn) && h.turn >= loaded[0].turn) direction = 1;
+        }
         const amount = Math.max(320, Math.floor((owner.clientHeight || innerHeight) * 0.85));
-        const direction = reverse ? -1 : -1;
         if (typeof owner.scrollBy === 'function') owner.scrollBy({ top: direction * amount, behavior: 'auto' }); else owner.scrollTop += direction * amount;
         await wait(300);
         restoreAll();
