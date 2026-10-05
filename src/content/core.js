@@ -33,7 +33,14 @@
   CP.closestMessage = (node) => {
     if (!node) return null;
     const el = node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
-    return el ? el.closest(CP.MESSAGE_SELECTOR) : null;
+    if (!el) return null;
+
+    /* Selection endpoints are more sensitive than navigation: ChatGPT can
+       put data-message-id on the message wrapper while the author-role
+       attribute lives on a nearby/changed node. Do not reject an otherwise
+       valid message just because that second attribute is absent. */
+    return el.closest(CP.MESSAGE_SELECTOR) ||
+      el.closest('[data-message-id]');
   };
 
   CP.roleOf = (msgEl) =>
