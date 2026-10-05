@@ -262,46 +262,10 @@
 
   const addFromSelection = async (color) => {
     const sel = window.getSelection();
-    const desc = CP.describeSelection(sel);
-    if (!desc) return false;
-    if (!convId) {
-      convId = CP.conversationId();
-      if (!convId) {
-        CP.ui.toast('Send a message first');
-        return false;
-      }
-      record = await CP.loadConversation(convId);
-    }
-
-    const displaced = dropOverlapping(desc.msgId, desc.start, desc.end);
-
-    const h = { id: CP.uid(), ...desc, color, note: '', ts: Date.now() };
-    record.items.push(h);
-    if (!CP.paint(h)) {
-      record.items.pop();
-      /* Put back whatever the failed attempt displaced. */
-      for (const old of displaced) {
-        record.items.push(old);
-        CP.paint(old);
-      }
-      CP.ui.toast('Could not place highlight');
-      return false;
-    }
-
-    /* Only a replacement is worth undoing — a plain new highlight is undone
-       by removing it, which the trash icon already does. */
-    if (displaced.length) {
-      pushUndo({
-        undoLabel: 'Replacement undone',
-        restore: displaced,
-        remove: [h.id]
-      });
-    }
-
-    await persist();
-    sel.removeAllRanges();
-    CP.ui.close();
-    return true;
+    if (!sel || sel.isCollapsed || !sel.rangeCount) return false;
+    const range = sel.getRangeAt(0).cloneRange();
+    const desc = CP.describeRange?.(range);
+    return addFromRange(range, desc, color);
   };
 
   const setColor = async (id, color, recordUndo = true) => {
@@ -409,22 +373,73 @@
 
   /* ---------- toolbar wiring ---------- */
 
-  const openForSelection = () => {
-    const sel = window.getSelection();
-    const desc = CP.describeSelection(sel);
+  const openForRange = (range) => {
+    const desc = CP.describeRange?.(range);
     if (!desc) return false;
-    const rect = sel.getRangeAt(0).getBoundingClientRect();
+
+    const rect = range.getBoundingClientRect();
     if (!rect.width && !rect.height) return false;
+
+    /* Keep the exact range alive for addFromSelection. ChatGPT may replace the
+       native selection immediately after we open our tray. */
+    const saved = range.cloneRange();
 
     CP.ui.open({
       mode: 'new',
       rect,
       payload: desc,
       handlers: {
-        onColor: (color) => addFromSelection(color),
+        onColor: (color) => addFromRange(saved, desc, color),
         onCopy: () => copyText(desc.text)
       }
     });
+    return true;
+  };
+
+  const openForSelection = () => {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed || !sel.rangeCount) return false;
+    return openForRange(sel.getRangeAt(0).cloneRange());
+  };
+
+  const addFromRange = async (range, desc, color) => {
+    if (!desc) return false;
+
+    if (!convId) {
+      convId = CP.conversationId();
+      if (!convId) {
+        CP.ui.toast('Send a message first');
+        return false;
+      }
+      record = await CP.loadConversation(convId);
+    }
+
+    const displaced = dropOverlapping(desc.msgId, desc.start, desc.end);
+    const h = { id: CP.uid(), ...desc, color, note: '', ts: Date.now() };
+    record.items.push(h);
+
+    if (!CP.paint(h)) {
+      record.items.pop();
+      for (const old of displaced) {
+        record.items.push(old);
+        CP.paint(old);
+      }
+      CP.ui.toast('Could not place highlight');
+      return false;
+    }
+
+    if (displaced.length) {
+      pushUndo({
+        undoLabel: 'Replacement undone',
+        restore: displaced,
+        remove: [h.id]
+      });
+    }
+
+    await persist();
+    try { range.detach?.(); } catch {}
+    window.getSelection()?.removeAllRanges();
+    CP.ui.close();
     return true;
   };
 
@@ -460,14 +475,50 @@
     return el;
   };
 
-  document.addEventListener('mouseup', (e) => {
+  let pendingSelectionRange = null;
+
+  const captureSelection = () => {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed || !sel.rangeCount) return;
+    const range = sel.getRangeAt(0);
+    if (CP.describeRange?.(range)) pendingSelectionRange = range.cloneRange();
+  };
+
+  const openCapturedSelection = () => {
+    if (!pendingSelectionRange) return false;
+    const range = pendingSelectionRange;
+    pendingSelectionRange = null;
+    return openForRange(range);
+  };
+
+  /* Capture BEFORE ChatGPT's own selection toolbar gets a chance to replace
+     the live Range. Pointerup covers the current Chromium event path; mouseup
+     remains for browsers/extensions where pointer events are retargeted. */
+  const onSelectionEnd = (e) => {
     if (CP.ui.contains(e.target)) return;
-    setTimeout(() => {
-      const mark = e.target instanceof Element ? e.target.closest('mark.cp-hl') : null;
-      if (openForSelection()) return;
+    captureSelection();
+    const target = e.target instanceof Element ? e.target : null;
+
+    requestAnimationFrame(() => {
+      if (openCapturedSelection()) return;
+      const mark = target?.closest('mark.cp-hl');
       if (mark && !mark.closest('a')) { openForMark(mark); return; }
-      CP.ui.close();
-    }, 0);
+      if (!window.getSelection()?.toString()) CP.ui.close();
+    });
+  };
+
+  document.addEventListener('pointerup', onSelectionEnd, true);
+  document.addEventListener('mouseup', onSelectionEnd, true);
+
+  /* Keyboard/mouse selection can emit selectionchange without a useful mouse
+     event. Capture it, but only open on the next animation frame after the
+     selection has settled. */
+  let selectionFrame = 0;
+  document.addEventListener('selectionchange', () => {
+    cancelAnimationFrame(selectionFrame);
+    selectionFrame = requestAnimationFrame(() => {
+      captureSelection();
+    });
   }, true);
 
   /* ChatGPT focuses its composer as soon as it sees a keystroke that is not
