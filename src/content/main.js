@@ -18,6 +18,9 @@
      for a short while as messages arrive, then give up quietly. */
   let pendingJump = null;
   let pendingUntil = 0;
+  let conversationIndex = null;
+  let conversationIndexPromise = null;
+  let conversationIndexConvId = null;
 
   const takeHashTarget = () => {
     const m = /[#&]cp=([^&]+)/.exec(location.hash || '');
@@ -44,7 +47,10 @@
   };
 
   const boot = async () => {
-    await CP.PALETTE.refresh(); // custom category names, before anything renders
+    await CP.PALETTE.refresh();
+    conversationIndex = null;
+    conversationIndexPromise = null;
+    conversationIndexConvId = null; // custom category names, before anything renders
     takeHashTarget();
     convId = CP.conversationId();
     record = convId ? await CP.loadConversation(convId) : null;
@@ -72,138 +78,134 @@
 
   /* Scroll a passage into view and flash it, so the eye lands on the right
      words rather than somewhere in the middle of the turn. */
+  const scrollOwner = () => {
+    const explicit = document.querySelector('.thread-scroll-container, [data-app-action-timeline-scroll], [data-scroll-root]');
+    if (explicit && explicit.scrollHeight > explicit.clientHeight + 24) return explicit;
+    const seed = document.querySelector(CP.MESSAGE_SELECTOR);
+    if (seed) {
+      for (let el = seed.parentElement; el && el !== document.body; el = el.parentElement) {
+        const style = getComputedStyle(el);
+        if (el.scrollHeight > el.clientHeight + 24 && /^(auto|scroll|overlay)$/.test(style.overflowY)) return el;
+      }
+    }
+    return document.scrollingElement || document.documentElement;
+  };
+
+  const scrollToMountedTarget = (target, behavior = 'smooth') => {
+    if (!target?.isConnected) return false;
+    const owner = scrollOwner();
+    const rect = target.getBoundingClientRect();
+    if (owner === document.scrollingElement || owner === document.documentElement) {
+      const top = (window.scrollY || owner.scrollTop || 0) + rect.top - Math.max(40, innerHeight * 0.35);
+      window.scrollTo({ top: Math.max(0, top), behavior });
+      return true;
+    }
+    const root = owner.getBoundingClientRect();
+    const top = owner.scrollTop + rect.top - root.top - Math.max(40, owner.clientHeight * 0.35);
+    if (typeof owner.scrollTo === 'function') owner.scrollTo({ top, behavior });
+    else owner.scrollTop = top;
+    return true;
+  };
+
   const paintAndJump = (id) => {
     const marks = CP.marksFor(id);
     if (!marks.length) return false;
-    marks[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+    scrollToMountedTarget(marks[0], 'smooth');
     marks.forEach((m) => {
       m.classList.remove('cp-flash');
-      void m.offsetWidth; // restart the animation if it is already running
+      void m.offsetWidth;
       m.classList.add('cp-flash');
       setTimeout(() => m.classList.remove('cp-flash'), 1200);
     });
     return true;
   };
 
-  /* ChatGPT lazily mounts only part of a long conversation. A stored
-     highlight can therefore point at a perfectly valid message that is not
-     currently in the DOM. When that happens, progressively seek through the
-     conversation so ChatGPT gets a chance to mount the missing turn.
+  const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-     We deliberately use the conversation's scroll container rather than
-     window.scrollTo(): on current ChatGPT layouts the actual scroll owner can
-     be an inner element, and scrolling the window would not cause the lazy
-     loader to fetch older/newer turns. */
-  const scrollOwner = () => {
-    const messages = document.querySelectorAll(CP.MESSAGE_SELECTOR);
-    const seed = messages[0];
-    if (seed) {
-      let el = seed.parentElement;
-      while (el && el !== document.body) {
-        const style = getComputedStyle(el);
-        const canScroll = el.scrollHeight > el.clientHeight + 24;
-        const overflow = style.overflowY === 'auto' || style.overflowY === 'scroll';
-        if (canScroll && overflow) return el;
-        el = el.parentElement;
-      }
-    }
-    return document.scrollingElement || document.documentElement;
+  const loadConversationIndex = async () => {
+    if (!convId) return null;
+    if (conversationIndexConvId === convId && conversationIndex) return conversationIndex;
+    if (conversationIndexPromise) return conversationIndexPromise;
+    conversationIndexPromise = (async () => {
+      try {
+        const base = '/backend-api/conversations/' + encodeURIComponent(convId);
+        const all = []; let before = ''; const seen = new Set();
+        for (let pageNo = 0; pageNo < 60; pageNo++) {
+          const url = before
+            ? base + '/messages?before=' + encodeURIComponent(before) + '&include_has_versions=true&num_turns=100'
+            : base + '?include_has_versions=true&num_turns=100';
+          let response = await fetch(url, { credentials: 'include', cache: 'no-store' });
+          if ((response.status === 401 || response.status === 403) && pageNo === 0) {
+            try {
+              const session = await fetch('/api/auth/session', { credentials: 'include', cache: 'no-store' });
+              const data = await session.json();
+              if (data?.accessToken) response = await fetch(url, { credentials: 'include', cache: 'no-store', headers: { Authorization: 'Bearer ' + data.accessToken } });
+            } catch {}
+          }
+          if (!response.ok) return null;
+          const data = await response.json();
+          if (!Array.isArray(data?.messages)) return null;
+          all.unshift(...data.messages);
+          const info = data.page_info || data.pageInfo || {};
+          if (info.has_previous_page === false) break;
+          const next = info.start_cursor || info.startCursor;
+          if (!next || seen.has(next)) return null;
+          seen.add(next); before = next;
+        }
+        const ids = []; const seenIds = new Set();
+        for (const m of all) if (m?.id && !seenIds.has(m.id)) { seenIds.add(m.id); ids.push(m.id); }
+        if (!ids.length) return null;
+        const byId = new Map(ids.map((id, i) => [id, i]));
+        conversationIndex = { byId, total: ids.length }; conversationIndexConvId = convId;
+        return conversationIndex;
+      } catch { return null; }
+      finally { conversationIndexPromise = null; }
+    })();
+    return conversationIndexPromise;
   };
 
-  const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const jumpUsingConversationIndex = async (id) => {
+    const h = byId(id); if (!h) return false;
+    const index = await loadConversationIndex(); if (!index) return false;
+    const ordinal = index.byId.get(h.msgId); if (ordinal === undefined) return false;
+    const owner = scrollOwner();
+    const max = Math.max(0, owner.scrollHeight - owner.clientHeight); if (!max) return false;
+    const ratio = index.total <= 1 ? 0 : ordinal / (index.total - 1);
+    const reversed = owner !== document.scrollingElement && owner !== document.documentElement && getComputedStyle(owner).flexDirection === 'column-reverse';
+    const desired = reversed ? -ratio * max : ratio * max;
+    if (typeof owner.scrollTo === 'function') owner.scrollTo({ top: desired, behavior: 'auto' }); else owner.scrollTop = desired;
+    await wait(400);
+    restoreAll();
+    return paintAndJump(id);
+  };
 
   const seekToHighlight = async (id) => {
     if (paintAndJump(id)) return true;
-
-    const h = byId(id);
-    if (!h) return false;
-
-    /* Avoid two panel clicks / pending-jump retries fighting over scrollTop. */
+    const h = byId(id); if (!h) return false;
     if (seekToHighlight.running) return false;
     seekToHighlight.running = true;
-
     try {
-      const deadline = Math.min(
-        pendingUntil || (Date.now() + 12000),
-        Date.now() + 12000
-      );
-
+      const deadline = Math.min(pendingUntil || (Date.now() + 12000), Date.now() + 12000);
+      const indexed = await jumpUsingConversationIndex(id);
+      if (indexed || paintAndJump(id)) return true;
       while (Date.now() < deadline) {
         if (paintAndJump(id)) return true;
-
-        const messages = [...document.querySelectorAll(CP.MESSAGE_SELECTOR)];
-        if (!messages.length) {
-          await wait(250);
-          continue;
-        }
-
-        /* h.turn is the DOM index from the moment a highlight was created.
-           It is NOT comparable with the current DOM index after lazy loading:
-           ChatGPT can mount only a slice of the conversation. Instead, use
-           other highlights whose turns are currently mounted as stable
-           landmarks. Their stored turn values were captured in the same
-           coordinate system as the target. */
-        const loadedLandmarks = (record?.items || [])
-          .filter((item) => Number.isFinite(item.turn) && CP.messageEl(item.msgId))
-          .sort((a, b) => a.turn - b.turn);
-
-        /* Older content is normally above the initially mounted slice. When
-           we have no landmark at all, bias upward; repeated passes will keep
-           asking ChatGPT for older content until the target appears. */
-        let direction = -1;
-        if (Number.isFinite(h.turn) && loadedLandmarks.length) {
-          const first = loadedLandmarks[0].turn;
-          const last = loadedLandmarks[loadedLandmarks.length - 1].turn;
-
-          if (h.turn > last) direction = 1;
-          else if (h.turn < first) direction = -1;
-          else {
-            const nearest = loadedLandmarks.reduce((best, item) =>
-              Math.abs(item.turn - h.turn) < Math.abs(best.turn - h.turn) ? item : best
-            );
-            direction = nearest.turn < h.turn ? 1 : -1;
-          }
-        }
-
         const owner = scrollOwner();
+        const reverse = owner !== document.scrollingElement && owner !== document.documentElement && getComputedStyle(owner).flexDirection === 'column-reverse';
         const amount = Math.max(320, Math.floor((owner.clientHeight || innerHeight) * 0.85));
-
-        if (direction < 0) {
-          owner.scrollTop = Math.max(0, owner.scrollTop - amount);
-        } else {
-          owner.scrollTop = Math.min(
-            owner.scrollHeight,
-            owner.scrollTop + amount
-          );
-        }
-
-        /* Give React + the lazy loader time to mount the next batch. */
-        await wait(220);
-
-        /* Newly mounted turns may now contain the target; restoreAll also
-           re-anchors any existing highlights whose DOM nodes were rebuilt. */
+        const direction = reverse ? -1 : -1;
+        if (typeof owner.scrollBy === 'function') owner.scrollBy({ top: direction * amount, behavior: 'auto' }); else owner.scrollTop += direction * amount;
+        await wait(300);
         restoreAll();
         if (paintAndJump(id)) return true;
-
-        /* If the scroll owner did not move at all, nudge the page-level
-           scroller too. This covers layouts where the visible conversation
-           is effectively window-scrolled. */
-        if (owner === document.scrollingElement || owner === document.documentElement) {
-          window.scrollBy(0, direction * amount);
-        }
       }
-    } finally {
-      seekToHighlight.running = false;
-    }
-
+    } finally { seekToHighlight.running = false; }
     return false;
   };
 
   const jumpTo = (id) => {
     if (paintAndJump(id)) return true;
-    seekToHighlight(id).then((found) => {
-      if (!found && pendingJump !== id) CP.ui.toast('That turn is not loaded');
-    });
+    seekToHighlight(id).then((found) => { if (!found && pendingJump !== id) CP.ui.toast('That turn is not loaded'); });
     return true;
   };
 
