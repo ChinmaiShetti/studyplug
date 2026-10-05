@@ -77,14 +77,17 @@
     return parts;
   };
 
-  /* Selection -> { msgId, role, start, end, text } or null if unusable. */
-  CP.describeSelection = (sel) => {
-    if (!sel || sel.isCollapsed || sel.rangeCount === 0) return null;
-    const range = sel.getRangeAt(0);
-    if (range.collapsed) return null;
+  /* Range -> { msgId, role, start, end, text } or null if unusable.
+     ChatGPT's current selection toolbar can react between mouseup and the next
+     task, so callers should hand us a cloned Range captured synchronously. */
+  CP.describeRange = (range) => {
+    if (!range || range.collapsed) return null;
 
-    const msgEl = CP.closestMessage(range.commonAncestorContainer);
-    if (!msgEl) return null;
+    const startMsg = CP.closestMessage(range.startContainer);
+    const endMsg = CP.closestMessage(range.endContainer);
+    if (!startMsg || !endMsg || startMsg !== endMsg) return null;
+
+    const msgEl = startMsg;
     const msgId = msgEl.getAttribute('data-message-id');
     if (!msgId) return null;
 
@@ -97,7 +100,6 @@
     if (start < 0 || end < 0) return null;
     if (start > end) [start, end] = [end, start];
 
-    /* Trim the whitespace a double-click or drag tends to sweep up. */
     const whole = CP.fullText(msgEl);
     while (start < end && /\s/.test(whole[start])) start++;
     while (end > start && /\s/.test(whole[end - 1])) end--;
@@ -106,13 +108,16 @@
     return {
       msgId,
       role: CP.roleOf(msgEl),
-      /* Stored as a fallback for ordering when the turn is not loaded; the
-         live DOM position wins whenever it is available. */
       turn: CP.messageOrder().get(msgId) ?? 0,
       start,
       end,
       text: whole.slice(start, end)
     };
+  };
+
+  CP.describeSelection = (sel) => {
+    if (!sel || sel.isCollapsed || sel.rangeCount === 0) return null;
+    return CP.describeRange(sel.getRangeAt(0));
   };
 
   CP.messageEl = (msgId) =>
