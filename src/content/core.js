@@ -16,7 +16,8 @@
 
   /* ChatGPT stamps a server-side id on every message turn. It survives
      re-renders and reloads, which makes it the anchor we hang highlights on. */
-  CP.MESSAGE_SELECTOR = '[data-message-id]';
+  /* Restrict to actual user/assistant message nodes. */
+  CP.MESSAGE_SELECTOR = '[data-message-id][data-message-author-role]';
 
   CP.uid = () =>
     'h_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
